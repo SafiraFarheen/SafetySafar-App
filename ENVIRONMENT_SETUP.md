@@ -2,15 +2,33 @@
 
 ## Backend Setup
 
-### 1. Create `.env` File
-Copy `.env.example` to `.env` in the `safety_safar_backend` folder:
+### Step 1: Install Dependencies
+First, create and activate a virtual environment, then install Python dependencies:
 
 ```bash
 cd safety_safar_backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Step 2: Create `.env` File
+Copy `.env.example` to `.env` in the `safety_safar_backend` folder:
+
+```bash
 cp .env.example .env
 ```
 
-### 2. Update Environment Variables
+### Step 3: Update Environment Variables
 Edit `.env` and fill in the actual values:
 
 ```
@@ -28,7 +46,7 @@ MAIL_SSL_TLS=False
 MAIL_FROM_NAME=SafetySafar Support
 ```
 
-### 3. Gmail App Passwords Setup
+### Step 4: Gmail App Passwords Setup
 To get `MAIL_PASSWORD`, follow these steps:
 
 1. Enable 2-factor authentication on your Gmail account
@@ -37,19 +55,33 @@ To get `MAIL_PASSWORD`, follow these steps:
 4. Google will generate a 16-character password
 5. Paste that into `MAIL_PASSWORD` in your `.env` file
 
+### Step 5: Run the Backend Server
+```bash
+# Make sure you're in safety_safar_backend folder with activated venv
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+The backend will be available at: `http://localhost:8000`
+- Docs: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
 ⚠️ **Never commit the `.env` file to GitHub!** It's already in `.gitignore`.
 
 ## Frontend Setup (Flutter)
 
-### 1. Firebase Configuration
+### Step 1: Firebase Configuration
 - Get your `google-services.json` from Firebase Console
 - Place it in `safety_safar_app/android/app/`
 - Place `GoogleService-Info.plist` in `safety_safar_app/ios/Runner/`
 
-### 2. Run Flutter App
+### Step 2: Install Flutter Dependencies
 ```bash
 cd safety_safar_app
 flutter pub get
+```
+
+### Step 3: Run Flutter App
+```bash
 flutter run
 ```
 
