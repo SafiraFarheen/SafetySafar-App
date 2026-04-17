@@ -69,18 +69,23 @@ The backend will be available at: `http://localhost:8000`
 
 ## Frontend Setup (Flutter)
 
-### Step 1: Firebase Configuration
-- Get your `google-services.json` from Firebase Console
-- Place it in `safety_safar_app/android/app/`
-- Place `GoogleService-Info.plist` in `safety_safar_app/ios/Runner/`
+For detailed Flutter setup instructions, see [FLUTTER_SETUP.md](FLUTTER_SETUP.md)
 
-### Step 2: Install Flutter Dependencies
+Quick start:
+### Step 1: Install Flutter
+Follow https://flutter.dev/docs/get-started/install
+
+### Step 2: Get Dependencies
 ```bash
 cd safety_safar_app
 flutter pub get
 ```
 
-### Step 3: Run Flutter App
+### Step 3: Configure Firebase
+- Android: Place `google-services.json` in `safety_safar_app/android/app/`
+- iOS: Place `GoogleService-Info.plist` in `safety_safar_app/ios/Runner/`
+
+### Step 4: Run the App
 ```bash
 flutter run
 ```
