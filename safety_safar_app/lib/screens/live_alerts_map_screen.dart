@@ -23,15 +23,18 @@ class LiveAlertsMapScreen extends StatefulWidget {
 class _LiveAlertsMapScreenState extends State<LiveAlertsMapScreen> {
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
+  final Set<Circle> _circles = {};
   dynamic _selectedEntity;
   Timer? _pollingTimer;
   List _allTourists = [];
   bool _showSatellite = false;
+  int _dangerCount = 0;
 
   @override
   void initState() {
     super.initState();
     _fetchAllTouristsLocations();
+    _fetchDangerZones();
     _startPolling();
   }
 
@@ -47,17 +50,63 @@ class _LiveAlertsMapScreenState extends State<LiveAlertsMapScreen> {
     });
   }
 
-  Future<void> _fetchAllTouristsLocations() async {
+  Future<void> _fetchDangerZones() async {
     try {
       final res = await http.get(
-        Uri.parse(ApiConfig.tourists),
+        Uri.parse(ApiConfig.dangerZones),
         headers: {'Authorization': 'Bearer ${widget.authToken}'},
       );
       if (res.statusCode == 200 && mounted) {
-        final dynamic decoded = jsonDecode(res.body);
-        final List tourists = (decoded is Map) ? (decoded['tourists'] ?? []) : decoded;
+        final List zones = jsonDecode(res.body);
+        final Set<Circle> newCircles = {};
+        for (var zone in zones) {
+          final lat = (zone['latitude'] as num).toDouble();
+          final lng = (zone['longitude'] as num).toDouble();
+          final radius = (zone['radius'] as num).toDouble();
+          final level = zone['danger_level'] as String? ?? 'low';
+          final color = _zoneColor(level);
+          newCircles.add(Circle(
+            circleId: CircleId('zone_${zone['id']}'),
+            center: LatLng(lat, lng),
+            radius: radius,
+            fillColor: color.withValues(alpha: 0.20),
+            strokeColor: color,
+            strokeWidth: 2,
+          ));
+        }
+        if (mounted) {
+          setState(() => _circles
+            ..removeWhere((c) => c.circleId.value.startsWith('zone_'))
+            ..addAll(newCircles));
+        }
+      }
+    } catch (e) {
+      debugPrint('Zone fetch error: $e');
+    }
+  }
+
+  Color _zoneColor(String level) {
+    switch (level) {
+      case 'critical': return Colors.red;
+      case 'high':     return Colors.deepOrange;
+      case 'medium':   return Colors.orange;
+      case 'safe':     return Colors.green;
+      default:         return Colors.yellow.shade700;
+    }
+  }
+
+  Future<void> _fetchAllTouristsLocations() async {
+    try {
+      final res = await http.get(
+        Uri.parse(ApiConfig.touristLocations),
+        headers: {'Authorization': 'Bearer ${widget.authToken}'},
+      );
+      if (res.statusCode == 200 && mounted) {
+        final List tourists = jsonDecode(res.body);
+        int danger = tourists.where((t) => t['is_in_danger'] == true).length;
         setState(() {
           _allTourists = tourists;
+          _dangerCount = danger;
           _updateMarkers();
         });
 
@@ -98,7 +147,7 @@ class _LiveAlertsMapScreenState extends State<LiveAlertsMapScreen> {
           updated.add(Marker(
             markerId: MarkerId('alert_${alert['id']}'),
             position: LatLng(lat, lng),
-            zIndex: 10,
+            zIndexInt: 10,
             icon: BitmapDescriptor.defaultMarkerWithHue(
               isActive ? BitmapDescriptor.hueRed : BitmapDescriptor.hueGreen,
             ),
@@ -108,23 +157,24 @@ class _LiveAlertsMapScreenState extends State<LiveAlertsMapScreen> {
       }
     }
 
-    // 2. Regular Tourist markers (Only if safe)
+    // 2. Tourist markers from live-locations endpoint
     for (var tourist in _allTourists) {
-      if (tourist['last_location'] != null && !usersWithSOS.contains(tourist['id'].toString())) {
-        final loc = tourist['last_location'];
-        final lat = (loc['latitude'] as num?)?.toDouble();
-        final lng = (loc['longitude'] as num?)?.toDouble();
-        
-        if (lat != null && lng != null) {
-          updated.add(Marker(
-            markerId: MarkerId('tourist_${tourist['id']}'),
-            position: LatLng(lat, lng),
-            zIndex: 1,
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-            alpha: 0.85,
-            onTap: () => setState(() => _selectedEntity = {...tourist, 'type': 'tourist'}),
-          ));
-        }
+      final uid = tourist['user_id']?.toString() ?? '';
+      if (usersWithSOS.contains(uid)) continue;
+      final lat = (tourist['latitude'] as num?)?.toDouble();
+      final lng = (tourist['longitude'] as num?)?.toDouble();
+      if (lat != null && lng != null) {
+        final inDanger = tourist['is_in_danger'] == true;
+        updated.add(Marker(
+          markerId: MarkerId('tourist_$uid'),
+          position: LatLng(lat, lng),
+          zIndexInt: inDanger ? 5 : 1,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            inDanger ? BitmapDescriptor.hueOrange : BitmapDescriptor.hueAzure,
+          ),
+          infoWindow: InfoWindow(title: tourist['name'] as String? ?? 'Tourist'),
+          onTap: () => setState(() => _selectedEntity = {...tourist, 'type': 'tourist'}),
+        ));
       }
     }
 
@@ -143,6 +193,7 @@ class _LiveAlertsMapScreenState extends State<LiveAlertsMapScreen> {
             initialCameraPosition: const CameraPosition(target: LatLng(20.5937, 78.9629), zoom: 5),
             mapType: _showSatellite ? MapType.hybrid : MapType.normal,
             markers: _markers,
+            circles: _circles,
             onMapCreated: (c) => _mapController = c,
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
@@ -180,7 +231,15 @@ class _LiveAlertsMapScreenState extends State<LiveAlertsMapScreen> {
       child: Row(children: [
         const Icon(Icons.radar_rounded, color: Color(0xFF0E3A7E), size: 18),
         const SizedBox(width: 10),
-        Text('${_allTourists.length} Tracked Tourists', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 13)),
+        Text('${_allTourists.length} Tracked', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 13)),
+        if (_dangerCount > 0) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
+            child: Text('$_dangerCount in danger', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ]),
     );
   }
@@ -198,24 +257,29 @@ class _LiveAlertsMapScreenState extends State<LiveAlertsMapScreen> {
 
   Widget _buildDetailCard() {
     final bool isAlert = _selectedEntity['type'] == 'alert';
-    final name = isAlert ? _selectedEntity['name'] : '${_selectedEntity['first_name']} ${_selectedEntity['last_name']}';
+    final name = isAlert
+        ? (_selectedEntity['name'] ?? 'Unknown')
+        : (_selectedEntity['name'] ?? '${_selectedEntity['first_name'] ?? ''} ${_selectedEntity['last_name'] ?? ''}'.trim());
+    final phone = _selectedEntity['phone'] ?? 'No phone';
+    final inDanger = _selectedEntity['is_in_danger'] == true;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 24, offset: const Offset(0, 10))]),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          CircleAvatar(radius: 24, backgroundColor: isAlert ? Colors.red.withOpacity(0.1) : const Color(0xFF0E3A7E).withOpacity(0.1), child: Icon(isAlert ? Icons.emergency : Icons.person, color: isAlert ? Colors.red : const Color(0xFF0E3A7E))),
+          CircleAvatar(radius: 24, backgroundColor: isAlert ? Colors.red.withValues(alpha:0.1) : const Color(0xFF0E3A7E).withValues(alpha:0.1), child: Icon(isAlert ? Icons.emergency : Icons.person, color: isAlert ? Colors.red : const Color(0xFF0E3A7E))),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(_selectedEntity['phone'] ?? 'No phone', style: const TextStyle(color: Colors.grey, fontSize: 12))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(phone, style: const TextStyle(color: Colors.grey, fontSize: 12))])),
           if (isAlert) Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)), child: const Text('SOS', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
+          if (!isAlert && inDanger) Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(8)), child: const Text('DANGER', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
         ]),
         const SizedBox(height: 16),
         Row(children: [
-          Expanded(child: ElevatedButton.icon(onPressed: () => launchUrl(Uri.parse("tel:${_selectedEntity['phone']}")), icon: const Icon(Icons.call), label: const Text("Call User"), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white))),
+          Expanded(child: ElevatedButton.icon(onPressed: () => launchUrl(Uri.parse("tel:$phone")), icon: const Icon(Icons.call), label: const Text("Call User"), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white))),
           const SizedBox(width: 10),
           Expanded(child: OutlinedButton.icon(onPressed: () {
-            final lat = isAlert ? _selectedEntity['latitude'] : _selectedEntity['last_location']['latitude'];
-            final lng = isAlert ? _selectedEntity['longitude'] : _selectedEntity['last_location']['longitude'];
+            final lat = isAlert ? _selectedEntity['latitude'] : _selectedEntity['latitude'];
+            final lng = isAlert ? _selectedEntity['longitude'] : _selectedEntity['longitude'];
             launchUrl(Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$lat,$lng"));
           }, icon: const Icon(Icons.directions), label: const Text("Navigate"))),
         ])

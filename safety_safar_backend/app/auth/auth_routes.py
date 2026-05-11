@@ -49,57 +49,65 @@ async def register(
     id_document: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    existing_user = db.query(User).filter(User.email == email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    try:
+        existing_user = db.query(User).filter(User.email == email).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Validate identity type
-    if nationality.lower() == "indian":
-        if document_type.lower() not in ["aadhaar", "driving lic."]:
-            raise HTTPException(status_code=400, detail="Indian users must use Aadhaar or Driving Lic.")
-    elif nationality.lower() == "foreign":
-        if document_type.lower() != "passport":
-            raise HTTPException(status_code=400, detail="Foreign users must use Passport")
+        # Validate identity type
+        if nationality.lower() == "indian":
+            if document_type.lower() not in ["aadhaar", "driving lic."]:
+                raise HTTPException(status_code=400, detail="Indian users must use Aadhaar or Driving Lic.")
+        elif nationality.lower() == "foreign":
+            if document_type.lower() != "passport":
+                raise HTTPException(status_code=400, detail="Foreign users must use Passport")
 
-    hashed_pw = hash_password(password)
-    identity_hash = hash_identity(document_number)
+        hashed_pw = hash_password(password)
+        identity_hash = hash_identity(document_number)
 
-    # Save files
-    profile_filename = f"{email}_profile_{profile_photo.filename}"
-    doc_filename = f"{email}_doc_{id_document.filename}"
-    
-    with open(os.path.join(UPLOAD_DIR, profile_filename), "wb") as buffer:
-        shutil.copyfileobj(profile_photo.file, buffer)
-    
-    with open(os.path.join(UPLOAD_DIR, doc_filename), "wb") as buffer:
-        shutil.copyfileobj(id_document.file, buffer)
+        # Save files
+        profile_filename = f"{email}_profile_{profile_photo.filename}"
+        doc_filename = f"{email}_doc_{id_document.filename}"
 
-    new_user = User(
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-        phone=phone,
-        hashed_password=hashed_pw,
-        nationality=nationality,
-        dob=dob,
-        gender=gender,
-        document_type=document_type,
-        document_number=document_number,
-        identity_hash=identity_hash,
-        arrival_date=arrival_date,
-        departure_date=departure_date,
-        accommodation_details=accommodation_details,
-        itinerary_json=itinerary_json,
-        emergency_name=emergency_name,
-        emergency_phone=emergency_phone,
-        emergency_relation=emergency_relation
-    )
+        with open(os.path.join(UPLOAD_DIR, profile_filename), "wb") as buffer:
+            shutil.copyfileobj(profile_photo.file, buffer)
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+        with open(os.path.join(UPLOAD_DIR, doc_filename), "wb") as buffer:
+            shutil.copyfileobj(id_document.file, buffer)
 
-    return {"message": "User registered successfully. Files uploaded. Digital ID will be issued after KYC verification."}
+        new_user = User(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            phone=phone,
+            hashed_password=hashed_pw,
+            nationality=nationality,
+            dob=dob,
+            gender=gender,
+            document_type=document_type,
+            document_number=document_number,
+            identity_hash=identity_hash,
+            arrival_date=arrival_date,
+            departure_date=departure_date,
+            accommodation_details=accommodation_details,
+            itinerary_json=itinerary_json,
+            emergency_name=emergency_name,
+            emergency_phone=emergency_phone,
+            emergency_relation=emergency_relation
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        return {"message": "User registered successfully. Files uploaded. Digital ID will be issued after KYC verification."}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 from fastapi import Request
 
@@ -108,7 +116,7 @@ from fastapi import Request
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
     try:
-        print("📥 Received:", user)
+        print("Received login request:", user.email)
 
         db_user = db.query(User).filter(User.email == user.email).first()
 
@@ -130,11 +138,12 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
             "user_id": str(db_user.id)
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
-        print("🔥 ERROR:")
         traceback.print_exc()
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/forgot-password")
 async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):

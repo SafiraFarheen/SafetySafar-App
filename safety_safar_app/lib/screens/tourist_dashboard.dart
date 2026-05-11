@@ -6,6 +6,9 @@ import '../login_screen.dart';
 import '../services/location_tracking_service.dart';
 import '../services/discovery_service.dart';
 import '../utils/api_config.dart';
+import 'tourist_map_screen.dart';
+import 'weather_screen.dart';
+import '../services/llm_chatbot_service.dart';
 
 class TouristDashboard extends StatefulWidget {
   final String authToken;
@@ -76,8 +79,8 @@ class _TouristDashboardState extends State<TouristDashboard>
     if (!mounted) return;
     setState(() {
       _anomalyQueue.add(event);
-      if (event.severity == 'critical') _safetyScore = (_safetyScore - 15).clamp(0, 100);
-      else if (event.severity == 'warning') _safetyScore = (_safetyScore - 5).clamp(0, 100);
+      if (event.severity == 'critical') { _safetyScore = (_safetyScore - 15).clamp(0, 100); }
+      else if (event.severity == 'warning') { _safetyScore = (_safetyScore - 5).clamp(0, 100); }
       _updateSafetyLevel();
     });
     if (!_showingAnomaly) _showNextAnomaly();
@@ -111,6 +114,7 @@ class _TouristDashboardState extends State<TouristDashboard>
 
   Future<void> _handleSOS() async {
     final pos = await _tracker.getCurrentLocation();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🚨 SOS Alert Sent! Authorities notified.'), backgroundColor: Colors.red));
     try {
       await http.post(Uri.parse('${ApiConfig.baseUrl}/alerts/sos'), headers: {'Authorization': 'Bearer ${widget.authToken}', 'Content-Type': 'application/json'}, body: jsonEncode({'latitude': pos?.latitude ?? 0.0, 'longitude': pos?.longitude ?? 0.0, 'message': 'Manual SOS'}));
@@ -133,7 +137,15 @@ class _TouristDashboardState extends State<TouristDashboard>
       ),
       bottomNavigationBar: _buildBottomNav(),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (c) => _ChatbotSheet()),
+        onPressed: () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (c) => _ChatbotSheet(
+            userLocation: _locationStatus,
+            safetyScore: _safetyScore,
+          ),
+        ),
         backgroundColor: const Color(0xFF0E3A7E),
         child: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white),
       ),
@@ -144,12 +156,13 @@ class _TouristDashboardState extends State<TouristDashboard>
     const items = [
       _TouristNavItem(Icons.home_rounded, 'Home'),
       _TouristNavItem(Icons.qr_code_rounded, 'Digital ID'),
+      _TouristNavItem(Icons.cloud_rounded, 'Weather'),
       _TouristNavItem(Icons.map_rounded, 'Safe Zones'),
       _TouristNavItem(Icons.person_rounded, 'Profile'),
     ];
 
     return Container(
-      decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 16, offset: const Offset(0, -3))]),
+      decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.07), blurRadius: 16, offset: const Offset(0, -3))]),
       child: SafeArea(
         top: false,
         child: SizedBox(
@@ -180,8 +193,9 @@ class _TouristDashboardState extends State<TouristDashboard>
     switch (_selectedIndex) {
       case 0: return _buildHomeTab();
       case 1: return DigitalIDScreen(userData: profileData);
-      case 2: return _buildSafeZonesTab();
-      case 3: return _buildProfileTab();
+      case 2: return const WeatherScreen();
+      case 3: return _buildSafeZonesTab();
+      case 4: return _buildProfileTab();
       default: return const SizedBox();
     }
   }
@@ -228,7 +242,7 @@ class _TouristDashboardState extends State<TouristDashboard>
   Widget _buildTrackingBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: _locationError ? Colors.red.withOpacity(0.06) : Colors.green.withOpacity(0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: _locationError ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3))),
+      decoration: BoxDecoration(color: _locationError ? Colors.red.withValues(alpha:0.06) : Colors.green.withValues(alpha:0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: _locationError ? Colors.red.withValues(alpha:0.3) : Colors.green.withValues(alpha:0.3))),
       child: Row(children: [
         Icon(_locationError ? Icons.location_off : Icons.gps_fixed, color: _locationError ? Colors.red : Colors.green, size: 20),
         const SizedBox(width: 12),
@@ -244,9 +258,9 @@ class _TouristDashboardState extends State<TouristDashboard>
         onLongPressStart: (_) => setState(() => _sosProgress = 1.0),
         onLongPressEnd: (_) { if (_sosProgress == 1.0) _handleSOS(); setState(() => _sosProgress = 0.0); },
         child: Stack(alignment: Alignment.center, children: [
-          ScaleTransition(scale: Tween(begin: 1.0, end: 1.25).animate(_sosPulseCtrl), child: Container(width: 150, height: 150, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red.withOpacity(0.1)))),
+          ScaleTransition(scale: Tween(begin: 1.0, end: 1.25).animate(_sosPulseCtrl), child: Container(width: 150, height: 150, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red.withValues(alpha:0.1)))),
           SizedBox(width: 160, height: 160, child: CircularProgressIndicator(value: _sosProgress, strokeWidth: 8, color: Colors.redAccent, backgroundColor: Colors.transparent)),
-          Container(width: 130, height: 130, decoration: BoxDecoration(shape: BoxShape.circle, gradient: const LinearGradient(colors: [Color(0xFFFF1744), Color(0xFFB71C1C)]), boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.4), blurRadius: 25)]), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: const [Icon(Icons.shield_rounded, color: Colors.white, size: 42), Text('SOS', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold))])),
+          Container(width: 130, height: 130, decoration: BoxDecoration(shape: BoxShape.circle, gradient: const LinearGradient(colors: [Color(0xFFFF1744), Color(0xFFB71C1C)]), boxShadow: [BoxShadow(color: Colors.red.withValues(alpha:0.4), blurRadius: 25)]), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: const [Icon(Icons.shield_rounded, color: Colors.white, size: 42), Text('SOS', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold))])),
         ]),
       ),
       const SizedBox(height: 12),
@@ -270,6 +284,7 @@ class _TouristDashboardState extends State<TouristDashboard>
   Widget _discTile(IconData i, String l, Color c, String t) => GestureDetector(
     onTap: () async {
       final pos = await _tracker.getCurrentLocation();
+      if (!mounted) return;
       showModalBottomSheet(context: context, backgroundColor: Colors.white, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))), builder: (c) => _NearbyPlacesList(title: l, type: t, lat: pos?.latitude ?? 0, lng: pos?.longitude ?? 0));
     },
     child: Container(width: 90, margin: const EdgeInsets.only(right: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(i, color: c, size: 28), Text(l, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))])),
@@ -290,11 +305,88 @@ class _TouristDashboardState extends State<TouristDashboard>
 
   Widget _buildEmergencyCard() => Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)), child: ListTile(contentPadding: EdgeInsets.zero, leading: const CircleAvatar(child: Icon(Icons.person)), title: Text(profileData?['emergency_name'] ?? 'Not Set', style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(profileData?['emergency_phone'] ?? '---')));
 
-  Widget _buildSafeZonesTab() => const Center(child: Text('Safe Zones logic active. Check Authority side for tracking.'));
+  Widget _buildSafeZonesTab() => TouristMapScreen(
+        authToken: widget.authToken,
+        userId: widget.userId,
+      );
 
   Widget _buildProfileTab() => SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(children: [const SizedBox(height: 40), const CircleAvatar(radius: 60, child: Icon(Icons.person, size: 60)), const SizedBox(height: 20), Text('${profileData?['first_name']} ${profileData?['last_name']}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), const SizedBox(height: 40), ElevatedButton(onPressed: _handleLogout, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 56)), child: const Text('Logout Session'))]));
 
-  Widget _buildAnomalyBanner(AnomalyEvent event) => SafeArea(child: SlideTransition(position: _anomalySlide, child: Padding(padding: const EdgeInsets.all(16), child: Material(elevation: 8, borderRadius: BorderRadius.circular(18), color: event.color, child: ListTile(leading: Icon(event.icon, color: Colors.white), title: Text(event.message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)))))));
+  Widget _buildAnomalyBanner(AnomalyEvent event) {
+    final zoneName   = event.data['zone_name']    as String? ?? '';
+    final level      = event.data['danger_level'] as String? ?? event.severity;
+    final threatType = event.data['threat_label'] as String? ?? event.data['zone_type']?.toString().toUpperCase() ?? '';
+    final isEntry    = event.type == 'danger_zone_entry';
+
+    Color bg;
+    switch (level) {
+      case 'critical': bg = const Color(0xFFB71C1C); break;
+      case 'high':     bg = const Color(0xFFE65100); break;
+      case 'medium':   bg = const Color(0xFFF57F17); break;
+      default:         bg = const Color(0xFF1B5E20);
+    }
+
+    return SafeArea(
+      child: SlideTransition(
+        position: _anomalySlide,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Material(
+            elevation: 12,
+            borderRadius: BorderRadius.circular(20),
+            color: bg,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(isEntry ? Icons.warning_rounded : Icons.check_circle_rounded,
+                      color: Colors.white, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      isEntry ? 'DANGER ZONE ENTERED' : 'Zone Exited',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900,
+                          fontSize: 14, letterSpacing: 0.5),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      _anomalySlideCtrl.reverse().then((_) {
+                        if (mounted) { setState(() { _anomalyQueue.removeAt(0); }); _showNextAnomaly(); }
+                      });
+                    },
+                    child: const Icon(Icons.close, color: Colors.white70, size: 18),
+                  ),
+                ]),
+                if (zoneName.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(zoneName,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                ],
+                if (threatType.isNotEmpty || level.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    if (threatType.isNotEmpty) _badge(threatType, Colors.white24),
+                    const SizedBox(width: 8),
+                    if (level.isNotEmpty) _badge('Level: ${level.toUpperCase()}', Colors.white30),
+                  ]),
+                ],
+                const SizedBox(height: 8),
+                Text(event.message,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _badge(String text, Color bg) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+    child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+  );
 }
 
 class _NearbyPlacesList extends StatelessWidget {
@@ -311,13 +403,264 @@ class _NearbyPlacesList extends StatelessWidget {
 }
 
 class _ChatbotSheet extends StatefulWidget {
-  @override State<_ChatbotSheet> createState() => _ChatbotSheetState();
+  final String userLocation;
+  final int safetyScore;
+
+  const _ChatbotSheet({
+    this.userLocation = 'India',
+    this.safetyScore = 100,
+  });
+
+  @override
+  State<_ChatbotSheet> createState() => _ChatbotSheetState();
 }
+
 class _ChatbotSheetState extends State<_ChatbotSheet> {
-  final List<Map<String, String>> _messages = [{'role': 'bot', 'text': 'Hello! I am your Safety Assistant. How can I help you today?'}];
+  final List<Map<String, dynamic>> _messages = [
+    {'role': 'bot', 'text': 'Hello! I\'m your SafetySafar AI Assistant. Ask me anything about travel safety, local tips, or recommendations! 🌍'}
+  ];
   final _ctrl = TextEditingController();
-  @override Widget build(BuildContext context) {
-    return Container(height: MediaQuery.of(context).size.height * 0.8, decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))), child: Column(children: [const SizedBox(height: 12), Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))), const Padding(padding: EdgeInsets.all(20), child: Text('Safety Assistant AI', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))), Expanded(child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _messages.length, itemBuilder: (c, i) => Align(alignment: _messages[i]['role'] == 'user' ? Alignment.centerRight : Alignment.centerLeft, child: Container(padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 12), decoration: BoxDecoration(color: _messages[i]['role'] == 'user' ? const Color(0xFF0E3A7E) : Colors.grey.shade100, borderRadius: BorderRadius.circular(16)), child: Text(_messages[i]['text']!, style: TextStyle(color: _messages[i]['role'] == 'user' ? Colors.white : Colors.black)))))), Padding(padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.of(context).viewInsets.bottom + 16), child: Row(children: [Expanded(child: TextField(controller: _ctrl, decoration: InputDecoration(hintText: 'Type your question...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(30))))), const SizedBox(width: 8), IconButton(onPressed: () { if (_ctrl.text.isEmpty) return; setState(() { _messages.add({'role': 'user', 'text': _ctrl.text}); _messages.add({'role': 'bot', 'text': 'Processing your request...'}); }); _ctrl.clear(); }, icon: const Icon(Icons.send_rounded, color: Color(0xFF0E3A7E)))]))]));
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!LLMChatbotService.isConfigured()) {
+      _messages.add({
+        'role': 'bot',
+        'text': '⚠️ AI service not configured.\n\n${LLMChatbotService.getSetupInstructions()}'
+      });
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    if (_ctrl.text.isEmpty || _isLoading) return;
+
+    final userMessage = _ctrl.text;
+    _ctrl.clear();
+
+    setState(() {
+      _messages.add({'role': 'user', 'text': userMessage});
+      _isLoading = true;
+    });
+
+    try {
+      // Prepare context about the tourist
+      final context = '''
+Location: ${widget.userLocation}
+Safety Score: ${widget.safetyScore}/100
+Current Time: ${DateTime.now().toString()}
+      ''';
+
+      print('🔵 Chat sending message: "$userMessage"');
+      print('🔵 Context: $context');
+
+      // Call LLM service
+      final response = await LLMChatbotService.chat(
+        userMessage: userMessage,
+        context: context,
+      );
+
+      print('🔵 LLM Response: "$response"');
+
+      if (mounted) {
+        setState(() {
+          if (response.isEmpty) {
+            _messages.add({
+              'role': 'bot',
+              'text': '⚠️ No response from AI service. Check console logs or verify API key in llm_chatbot_service.dart'
+            });
+          } else {
+            _messages.add({
+              'role': 'bot',
+              'text': response,
+            });
+          }
+          _isLoading = false;
+        });
+
+        // Auto-scroll to bottom
+        Future.delayed(const Duration(milliseconds: 100), () {
+          // Scroll to bottom
+        });
+      }
+    } catch (e) {
+      print('🔴 Chat Error: $e');
+      if (mounted) {
+        setState(() {
+          _messages.add({'role': 'bot', 'text': '❌ Error: ${e.toString()}'});
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '🤖 SafetySafar AI Assistant',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Real-time travel safety guidance powered by AI',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
+
+          // Messages
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final msg = _messages[index];
+                final isUser = msg['role'] == 'user';
+
+                return Align(
+                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isUser ? const Color(0xFF0E3A7E) : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          msg['text'] ?? '',
+                          style: TextStyle(
+                            color: isUser ? Colors.white : Colors.black87,
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
+                        ),
+                        if (msg['role'] == 'bot' && index == _messages.length - 1 && _isLoading)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(
+                                  Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Input Field
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ctrl,
+                    enabled: !_isLoading,
+                    maxLines: 1,
+                    decoration: InputDecoration(
+                      hintText: _isLoading ? 'Waiting for response...' : 'Ask me anything...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF0E3A7E),
+                          width: 2,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _isLoading ? null : _sendMessage,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _isLoading ? Colors.grey.shade400 : const Color(0xFF0E3A7E),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _isLoading ? Icons.hourglass_empty : Icons.send_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
   }
 }
 

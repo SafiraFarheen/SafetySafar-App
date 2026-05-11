@@ -13,10 +13,13 @@ from sqlalchemy import desc
 from app.auth.dependencies import get_db, get_current_user, require_authority
 from app.models.anomaly import LocationTrack, AnomalyAlert, DangerZone, AnomalyConfig
 from app.models.users import User
+from app.core.config import settings
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 from typing import Optional, List
 import math
+import json
+import requests as http_requests
 
 router = APIRouter(prefix="/anomaly", tags=["Anomaly & Geofencing"])
 
@@ -195,19 +198,80 @@ def track_location(
             }
         )
 
-    # ── 4. Danger zone entry detection ───────────────────────────
+    # ── 4. Signal drop / inactivity detection ────────────────────
+    INACTIVITY_MINUTES = 45
+    SIGNAL_DROP_MINUTES = 10
+    if prev_track:
+        prev_time = prev_track.timestamp
+        if prev_time.tzinfo is None:
+            prev_time = prev_time.replace(tzinfo=timezone.utc)
+        gap_minutes = (now - prev_time).total_seconds() / 60.0
+
+        if gap_minutes >= SIGNAL_DROP_MINUTES:
+            # Check no recent signal-drop alert in last 30 min to avoid spam
+            recent_cutoff = now - timedelta(minutes=30)
+            recent_drop = (
+                db.query(AnomalyAlert)
+                .filter(
+                    AnomalyAlert.user_id == current_user.id,
+                    AnomalyAlert.anomaly_type == "signal_drop",
+                    AnomalyAlert.created_at >= recent_cutoff,
+                )
+                .first()
+            )
+            if not recent_drop:
+                create_anomaly(
+                    db,
+                    current_user.id,
+                    anomaly_type="signal_drop",
+                    severity="warning",
+                    description=f"Location signal was lost for {gap_minutes:.0f} minutes.",
+                    lat=data.latitude,
+                    lon=data.longitude,
+                    extra_data={"gap_minutes": round(gap_minutes, 1)},
+                )
+                anomalies_detected.append({"type": "signal_drop", "gap_minutes": round(gap_minutes, 1)})
+
+        if gap_minutes >= INACTIVITY_MINUTES:
+            recent_cutoff = now - timedelta(minutes=60)
+            recent_inactivity = (
+                db.query(AnomalyAlert)
+                .filter(
+                    AnomalyAlert.user_id == current_user.id,
+                    AnomalyAlert.anomaly_type == "prolonged_inactivity",
+                    AnomalyAlert.created_at >= recent_cutoff,
+                )
+                .first()
+            )
+            if not recent_inactivity:
+                create_anomaly(
+                    db,
+                    current_user.id,
+                    anomaly_type="prolonged_inactivity",
+                    severity="critical",
+                    description=f"Tourist has been inactive for {gap_minutes:.0f} minutes. Possible distress.",
+                    lat=data.latitude,
+                    lon=data.longitude,
+                    extra_data={"inactive_minutes": round(gap_minutes, 1)},
+                )
+                anomalies_detected.append({"type": "prolonged_inactivity", "inactive_minutes": round(gap_minutes, 1)})
+
+    # ── 5. Danger zone entry & exit detection ────────────────────
     active_zones = (
         db.query(DangerZone)
         .filter(DangerZone.is_active == True)
         .all()
     )
+    current_inside_ids = set()
     for zone in active_zones:
         dist_m = haversine_m(
             zone.latitude, zone.longitude,
             data.latitude, data.longitude,
         )
         if dist_m <= zone.radius:
-            # Avoid duplicate alerts within last 10 minutes for same zone
+            current_inside_ids.add(zone.id)
+            if zone.danger_level == "safe":
+                continue
             recent_cutoff = now - timedelta(minutes=10)
             recent = (
                 db.query(AnomalyAlert)
@@ -254,7 +318,52 @@ def track_location(
                     }
                 )
 
-    # ── 5. Save location track ────────────────────────────────────
+    # Exit detection: was inside zone on previous ping but not now
+    if prev_track:
+        for zone in active_zones:
+            if zone.danger_level == "safe":
+                continue
+            prev_dist_m = haversine_m(
+                zone.latitude, zone.longitude,
+                prev_track.latitude, prev_track.longitude,
+            )
+            was_inside = prev_dist_m <= zone.radius
+            is_now_inside = zone.id in current_inside_ids
+            if was_inside and not is_now_inside:
+                recent_cutoff = now - timedelta(minutes=10)
+                recent_exit = (
+                    db.query(AnomalyAlert)
+                    .filter(
+                        AnomalyAlert.user_id == current_user.id,
+                        AnomalyAlert.anomaly_type == "danger_zone_exit",
+                        AnomalyAlert.alert_data["zone_id"].astext == str(zone.id),
+                        AnomalyAlert.created_at >= recent_cutoff,
+                    )
+                    .first()
+                )
+                if not recent_exit:
+                    create_anomaly(
+                        db,
+                        current_user.id,
+                        anomaly_type="danger_zone_exit",
+                        severity="info",
+                        description=(
+                            f"Tourist exited danger zone: '{zone.name}' "
+                            f"({zone.danger_level.upper()})."
+                        ),
+                        lat=data.latitude,
+                        lon=data.longitude,
+                        extra_data={
+                            "zone_id": str(zone.id),
+                            "zone_name": zone.name,
+                            "danger_level": zone.danger_level,
+                        },
+                    )
+                    anomalies_detected.append(
+                        {"type": "danger_zone_exit", "zone_name": zone.name}
+                    )
+
+    # ── 6. Save location track ────────────────────────────────────
     track = LocationTrack(
         user_id=current_user.id,
         latitude=data.latitude,
@@ -430,3 +539,185 @@ def get_config(
         "route_deviation_alert_m": cfg.route_deviation_alert_m,
         "gps_update_interval_sec": cfg.gps_update_interval_sec,
     }
+
+
+# ─────────────────────────────────────────────────────────────────
+#  GET /anomaly/tourist-locations  (Authority: all tourists' live positions)
+# ─────────────────────────────────────────────────────────────────
+@router.get("/tourist-locations")
+def get_tourist_locations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_authority),
+):
+    """Returns latest GPS ping for every tourist, with active zone membership."""
+    from app.models.users import User as UserModel
+    tourists = db.query(UserModel).filter(UserModel.role == "tourist").all()
+    active_zones = db.query(DangerZone).filter(DangerZone.is_active == True).all()
+    result = []
+    for tourist in tourists:
+        latest = (
+            db.query(LocationTrack)
+            .filter(LocationTrack.user_id == tourist.id)
+            .order_by(desc(LocationTrack.timestamp))
+            .first()
+        )
+        if not latest:
+            continue
+        # Check which zones this tourist is currently inside
+        inside = []
+        for zone in active_zones:
+            dist_m = haversine_m(zone.latitude, zone.longitude, latest.latitude, latest.longitude)
+            if dist_m <= zone.radius:
+                inside.append({"zone_name": zone.name, "danger_level": zone.danger_level})
+        result.append({
+            "user_id": str(tourist.id),
+            "name": f"{tourist.first_name or ''} {tourist.last_name or ''}".strip(),
+            "phone": tourist.phone,
+            "latitude": latest.latitude,
+            "longitude": latest.longitude,
+            "last_seen": latest.timestamp.isoformat() if latest.timestamp else None,
+            "inside_zones": inside,
+            "is_in_danger": any(z["danger_level"] in ["high", "critical"] for z in inside),
+        })
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────
+#  POST /anomaly/assess-zone  (Gemini AI zone safety assessment)
+# ─────────────────────────────────────────────────────────────────
+class AssessZoneRequest(BaseModel):
+    latitude: float
+    longitude: float
+
+
+@router.post("/assess-zone")
+def assess_zone(
+    data: AssessZoneRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Fetch all active danger zones
+    active_zones = db.query(DangerZone).filter(DangerZone.is_active == True).all()
+
+    # Find nearby zones (within 5 km)
+    nearby_zones = []
+    inside_zones = []
+    for zone in active_zones:
+        dist_m = haversine_m(zone.latitude, zone.longitude, data.latitude, data.longitude)
+        dist_km = dist_m / 1000
+        if dist_m <= zone.radius:
+            inside_zones.append({
+                "name": zone.name,
+                "danger_level": zone.danger_level,
+                "zone_type": zone.zone_type,
+                "description": zone.description or "",
+                "reason": zone.reason or "",
+                "distance_m": round(dist_m, 1),
+            })
+        elif dist_km <= 5:
+            nearby_zones.append({
+                "name": zone.name,
+                "danger_level": zone.danger_level,
+                "zone_type": zone.zone_type,
+                "distance_km": round(dist_km, 2),
+            })
+
+    # Determine base status without AI if no API key
+    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your_gemini_api_key_here":
+        if inside_zones:
+            worst = max(inside_zones, key=lambda z: ["low", "medium", "high", "critical"].index(z["danger_level"]))
+            level = worst["danger_level"]
+            status = {"low": "CAUTION", "medium": "RISK", "high": "DANGER", "critical": "DANGER"}.get(level, "CAUTION")
+            return {
+                "zone_status": status,
+                "safety_score": {"CAUTION": 65, "RISK": 40, "DANGER": 15}.get(status, 65),
+                "zone_description": f"You are inside '{worst['name']}' — a {level} risk zone.",
+                "recommendations": ["Leave this area immediately" if level in ["high", "critical"] else "Proceed with caution", "Notify your emergency contact"],
+                "inside_zones": inside_zones,
+                "nearby_zones": nearby_zones,
+                "ai_powered": False,
+            }
+        elif nearby_zones:
+            return {
+                "zone_status": "CAUTION",
+                "safety_score": 70,
+                "zone_description": f"{len(nearby_zones)} risk zone(s) within 5 km of your location.",
+                "recommendations": ["Stay aware of your surroundings", "Avoid marked danger zones"],
+                "inside_zones": [],
+                "nearby_zones": nearby_zones,
+                "ai_powered": False,
+            }
+        else:
+            return {
+                "zone_status": "SAFE",
+                "safety_score": 95,
+                "zone_description": "You are in a safe zone with no known risks nearby.",
+                "recommendations": ["Continue enjoying your visit", "Keep location sharing on"],
+                "inside_zones": [],
+                "nearby_zones": [],
+                "ai_powered": False,
+            }
+
+    # Build Gemini prompt
+    zones_context = ""
+    if inside_zones:
+        zones_context += f"\nZones the tourist is CURRENTLY INSIDE:\n{json.dumps(inside_zones, indent=2)}"
+    if nearby_zones:
+        zones_context += f"\nZones NEARBY (within 5 km):\n{json.dumps(nearby_zones, indent=2)}"
+    if not inside_zones and not nearby_zones:
+        zones_context = "\nNo known danger zones nearby."
+
+    prompt = f"""You are a tourist safety AI for SafetySafar, a government safety monitoring app.
+
+A tourist is at coordinates: latitude={data.latitude}, longitude={data.longitude}
+{zones_context}
+
+Assess their safety and respond ONLY with a valid JSON object in exactly this format:
+{{
+  "zone_status": "SAFE" | "CAUTION" | "RISK" | "DANGER",
+  "safety_score": <integer 0-100>,
+  "zone_description": "<1-2 sentence description of current location safety>",
+  "recommendations": ["<action 1>", "<action 2>", "<action 3>"]
+}}
+
+Rules:
+- SAFE: No danger zones nearby, score 80-100
+- CAUTION: Danger zones within 5 km but not inside, score 55-79
+- RISK: Inside a low/medium danger zone, score 30-54
+- DANGER: Inside a high/critical danger zone, score 0-29
+- recommendations must be specific and actionable for a tourist
+- Respond ONLY with the JSON, no extra text"""
+
+    try:
+        gemini_url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+        )
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        resp = http_requests.post(gemini_url, json=payload, timeout=15)
+        resp.raise_for_status()
+        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        result = json.loads(raw.strip())
+        result["inside_zones"] = inside_zones
+        result["nearby_zones"] = nearby_zones
+        result["ai_powered"] = True
+        return result
+    except Exception as e:
+        # Fallback to rule-based if Gemini fails
+        print(f"Gemini error: {e}")
+        status = "DANGER" if inside_zones and any(z["danger_level"] in ["high", "critical"] for z in inside_zones) \
+            else "RISK" if inside_zones else "CAUTION" if nearby_zones else "SAFE"
+        return {
+            "zone_status": status,
+            "safety_score": {"SAFE": 90, "CAUTION": 65, "RISK": 40, "DANGER": 15}[status],
+            "zone_description": "Safety assessed based on known danger zones.",
+            "recommendations": ["Stay alert", "Share your location with contacts", "Contact authorities if unsafe"],
+            "inside_zones": inside_zones,
+            "nearby_zones": nearby_zones,
+            "ai_powered": False,
+        }

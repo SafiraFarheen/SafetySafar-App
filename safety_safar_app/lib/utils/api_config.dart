@@ -33,8 +33,17 @@ class ApiConfig {
   static String resolveAnomalyAlert(String id) =>
       '$baseUrl/anomaly/alerts/resolve/$id';
 
-  // Danger zones
-  static const String dangerZones = '$baseUrl/anomaly/danger-zones';
-  static String dangerZonesNear(double lat, double lng, {double radiusKm = 5}) =>
+  // Live tourist locations for authority map
+  static String get touristLocations => '$baseUrl/anomaly/tourist-locations';
+
+  // Danger zones & AI assessment
+  static String get dangerZones => '$baseUrl/anomaly/danger-zones';
+  static String dangerZonesNear(
+    double lat,
+    double lng, {
+    double radiusKm = 5,
+  }) =>
       '$baseUrl/anomaly/danger-zones?latitude=$lat&longitude=$lng&radius_km=$radiusKm';
+  static String get assessZone => '$baseUrl/anomaly/assess-zone';
 }
+

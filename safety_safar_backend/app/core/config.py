@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     MAIL_STARTTLS: bool = os.getenv("MAIL_STARTTLS", "True") == "True"
     MAIL_SSL_TLS: bool = os.getenv("MAIL_SSL_TLS", "False") == "True"
 
+    # Gemini AI
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
     # Reset URL
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
