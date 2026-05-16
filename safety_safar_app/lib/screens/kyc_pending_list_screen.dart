@@ -121,7 +121,7 @@ class _KYCPendingListScreenState extends State<KYCPendingListScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha:0.2),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(Icons.verified_user_rounded,
@@ -144,7 +144,7 @@ class _KYCPendingListScreenState extends State<KYCPendingListScreen> {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.04), blurRadius: 10)
+                      color: Colors.black.withValues(alpha:0.04), blurRadius: 10)
                 ],
                 border: Border.all(color: const Color(0xFFEDF1F5)),
               ),
@@ -193,7 +193,7 @@ class _KYCPendingListScreenState extends State<KYCPendingListScreen> {
             Container(
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.08),
+                color: Colors.green.withValues(alpha:0.08),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.done_all_rounded,
@@ -259,8 +259,8 @@ class _KYCPendingListScreenState extends State<KYCPendingListScreen> {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isRejected
-                ? Colors.red.withOpacity(0.25)
-                : Colors.orange.withOpacity(0.2),
+                ? Colors.red.withValues(alpha:0.25)
+                : Colors.orange.withValues(alpha:0.2),
           ),
           boxShadow: const [
             BoxShadow(
@@ -282,7 +282,7 @@ class _KYCPendingListScreenState extends State<KYCPendingListScreen> {
                     height: 50,
                     decoration: BoxDecoration(
                       color:
-                          (isRejected ? Colors.red : Colors.orange).withOpacity(0.1),
+                          (isRejected ? Colors.red : Colors.orange).withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Center(
@@ -319,8 +319,8 @@ class _KYCPendingListScreenState extends State<KYCPendingListScreen> {
                         horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: isRejected
-                          ? Colors.red.withOpacity(0.08)
-                          : Colors.orange.withOpacity(0.08),
+                          ? Colors.red.withValues(alpha:0.08)
+                          : Colors.orange.withValues(alpha:0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
@@ -351,9 +351,9 @@ class _KYCPendingListScreenState extends State<KYCPendingListScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.05),
+                    color: Colors.red.withValues(alpha:0.05),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.red.withOpacity(0.15)),
+                    border: Border.all(color: Colors.red.withValues(alpha:0.15)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,

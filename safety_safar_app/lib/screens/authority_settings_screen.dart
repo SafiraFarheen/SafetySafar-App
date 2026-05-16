@@ -129,7 +129,7 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(Icons.settings_rounded,
@@ -228,7 +228,7 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
+                    color: Colors.green.withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text('ACTIVE',
@@ -351,7 +351,7 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.teal.withOpacity(0.1),
+                          color: Colors.teal.withValues(alpha:0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(Icons.timer_rounded,
@@ -381,8 +381,8 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
                     data: SliderThemeData(
                       activeTrackColor: Colors.teal,
                       thumbColor: Colors.teal,
-                      inactiveTrackColor: Colors.teal.withOpacity(0.2),
-                      overlayColor: Colors.teal.withOpacity(0.1),
+                      inactiveTrackColor: Colors.teal.withValues(alpha:0.2),
+                      overlayColor: Colors.teal.withValues(alpha:0.1),
                     ),
                     child: Slider(
                       value: _refreshInterval.toDouble(),
@@ -457,7 +457,7 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
         decoration: BoxDecoration(
           color: Colors.red.shade50,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
+          border: Border.all(color: Colors.red.withValues(alpha:0.3)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -513,7 +513,7 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 18),
@@ -536,7 +536,7 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
           ),
           CupertinoSwitch(
             value: value,
-            activeColor: const Color(0xFF0E3A7E),
+            activeTrackColor: const Color(0xFF0E3A7E),
             onChanged: onChanged,
           ),
         ],
@@ -576,7 +576,7 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 18),

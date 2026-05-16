@@ -13,3 +13,15 @@ class SendOTPRequest(BaseModel):
 class VerifyOTPRequest(BaseModel):
     phone: str
     otp: str
+
+class AuthorityRegisterRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone: str
+    password: str
+    department: str  # e.g., "Police", "Tourism Board", "Government"
+
+class AuthorityApprovalRequest(BaseModel):
+    department: str
+    role: str  # "authority" or "admin"

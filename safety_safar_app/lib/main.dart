@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'home_screen.dart';
+import 'login_role_selector_screen.dart';
 import 'login_screen.dart';
 import 'registration_screen.dart';
 import 'reset_password_screen.dart';
@@ -46,7 +47,8 @@ class SafetySafarApp extends StatelessWidget {
       ),
       initialRoute: '/',
       routes: {
-        '/': (context) => const LoginScreen(),
+        '/': (context) => const LoginRoleSelectorScreen(),
+        '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegistrationScreen(),
         '/reset_password': (context) => const ResetPasswordScreen(),
         '/home': (context) => const HomeScreen(),

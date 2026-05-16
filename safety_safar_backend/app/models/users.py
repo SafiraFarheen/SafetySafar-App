@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, DateTime, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 import uuid
 
@@ -15,6 +16,12 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
 
     role = Column(String, default="tourist")
+
+    # Authority/Admin specific fields
+    is_approved = Column(Boolean, default=False)  # Authorities must be approved before granting role
+    department = Column(String, nullable=True)  # e.g., "Police", "Tourism Board", "Government"
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approved_by = Column(UUID(as_uuid=True), nullable=True)  # ID of admin who approved this authority
 
     nationality = Column(String, nullable=False)
     dob = Column(String, nullable=True)

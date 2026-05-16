@@ -2,13 +2,13 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class LLMChatbotService {
-  // Using Groq API (Free - 30 requests/minute)
-  // Sign up at: https://console.groq.com/keys
-  static const String _groqApiKey = 'gsk_YOUR_GROQ_API_KEY_HERE'; // Replace with your actual Groq API Key
+  // API keys must be provided via build/runtime configuration.
+  // Use `--dart-define=GROQ_API_KEY=...` and `--dart-define=HF_API_KEY=...` when building.
+  static const String _groqApiKey = String.fromEnvironment('GROQ_API_KEY', defaultValue: '');
   static const String _groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
 
   // Using Hugging Face Inference API as fallback (also free)
-  static const String _huggingFaceKey = 'hf_FKvzPqRstuVwXyZaBcDeFgHiJkLmNoPq'; // Replace with your key
+  static const String _huggingFaceKey = String.fromEnvironment('HF_API_KEY', defaultValue: '');
   static const String _huggingFaceUrl = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1';
 
   static const Duration _timeout = Duration(seconds: 15);
@@ -206,11 +206,7 @@ Response:''';
   static String getSetupInstructions() {
     return '''To enable AI Assistant:
 
-1. Go to https://console.groq.com/keys
-2. Create a free account
-3. Copy your API Key
-4. Edit lib/services/llm_chatbot_service.dart
-5. Replace _groqApiKey with your actual key
+
 
 OR use Hugging Face:
 1. Go to https://huggingface.co/settings/tokens

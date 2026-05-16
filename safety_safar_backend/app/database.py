@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "postgresql://postgres:Safar%401604@localhost:5432/safety_safar"
+DATABASE_URL = "postgresql://postgres:SafetySafar%402026@db.furrhjinhowmlkicblvl.supabase.co:5432/postgres"
 
 engine = create_engine(DATABASE_URL)
 
@@ -30,7 +30,11 @@ def ensure_user_columns():
         "verified_at": "TIMESTAMP WITH TIME ZONE",
         "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT now()",
         "kyc_rejection_reason": "TEXT",
-        "kyc_rejected_at": "TIMESTAMP WITH TIME ZONE"
+        "kyc_rejected_at": "TIMESTAMP WITH TIME ZONE",
+        "is_approved": "BOOLEAN DEFAULT FALSE",
+        "department": "VARCHAR",
+        "approved_at": "TIMESTAMP WITH TIME ZONE",
+        "approved_by": "UUID"
     }
 
     with engine.begin() as conn:
