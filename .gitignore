@@ -1,0 +1,59 @@
+# =========================
+# Environment Variables
+# =========================
+.env
+*.env
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual Environments
+venv/
+.venv/
+
+# =========================
+# IDE / Editor
+# =========================
+.idea/
+.vscode/
+
+# =========================
+# Flutter / Dart
+# =========================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# =========================
+# Android / Gradle
+# =========================
+.gradle/
+local.properties
+
+# Firebase Config
+google-services.json
+
+# =========================
+# Uploads / Generated Files
+# =========================
+uploads/
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
