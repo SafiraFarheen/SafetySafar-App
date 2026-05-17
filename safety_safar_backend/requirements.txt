@@ -12,6 +12,8 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-dotenv==1.0.0
 email-validator==2.1.0
+fastapi-mail==1.4.1
+requests
 
 # Data Validation & Settings
 pydantic==2.5.0
