@@ -16,6 +16,11 @@ class User(Base):
 
     role = Column(String, default="tourist")
 
+    is_approved = Column(Boolean, default=False)  # Authorities must be approved before granting role
+    department = Column(String, nullable=True)  # e.g., "Police", "Tourism Board", "Government"
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approved_by = Column(UUID(as_uuid=True), nullable=True)  # ID of admin who approved this authority
+
     nationality = Column(String, nullable=False)
     dob = Column(String, nullable=True)
     gender = Column(String, nullable=True)
