@@ -1,9 +1,9 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "postgresql://postgres:SafetySafar%402026@db.furrhjinhowmlkicblvl.supabase.co:5432/postgres"
+DATABASE_URL = "postgresql://postgres.furrhjinhowmlkicblvl:SafetySafar%402026@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
