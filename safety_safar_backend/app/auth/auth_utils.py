@@ -60,40 +60,6 @@ async def send_reset_email(email: str, token: str):
     fm = FastMail(mail_conf)
     await fm.send_message(message)
 
-# 📱 SMS Sending via Twilio
-def send_otp_sms(phone: str, otp: str):
-    """Send OTP via SMS using Twilio"""
-    if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
-        print(f"[WARNING] Twilio not configured.")
-        print(f"[DEBUG] OTP for {phone} is: {otp}")
-        print(f"[INFO] To enable real SMS: Add these to .env:")
-        print(f"       TWILIO_ACCOUNT_SID=your_account_sid")
-        print(f"       TWILIO_AUTH_TOKEN=your_auth_token") 
-        print(f"       TWILIO_PHONE_NUMBER=your_twilio_phone")
-        
-        # Fallback: Try to send via email instead
-        try:
-            send_otp_email(phone, otp)
-            return "email_sent"
-        except:
-            return None
-    
-    try:
-        from twilio.rest import Client
-        
-        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-        message = client.messages.create(
-            body=f"Your SafetySafar OTP is: {otp}. Do not share this with anyone.",
-            from_=settings.TWILIO_PHONE_NUMBER,
-            to=f"+91{phone}" if len(phone) == 10 else f"+{phone}"
-        )
-        print(f"[SUCCESS] SMS sent to {phone}. Message SID: {message.sid}")
-        return message.sid
-    except Exception as e:
-        print(f"[ERROR] Failed to send SMS to {phone}: {str(e)}")
-        print(f"[DEBUG] OTP for {phone} is: {otp}")
-        return None
-
 def send_otp_email(phone: str, otp: str):
     """Send OTP via email as fallback"""
     try:
