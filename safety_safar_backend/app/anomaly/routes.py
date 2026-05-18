@@ -691,7 +691,7 @@ Rules:
     try:
         gemini_url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+            f"gemini-1.5-flash-latest:generateContent?key={settings.GEMINI_API_KEY}"
         )
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         resp = http_requests.post(gemini_url, json=payload, timeout=15)
