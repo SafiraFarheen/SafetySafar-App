@@ -68,7 +68,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'gender': _genderCtrl.text,
         'arrival_date': _arrivalCtrl.text,
         'departure_date': _departureCtrl.text,
-        'accommodation_details': _accommodationCtrl.text,
+        'accommodation': _accommodationCtrl.text,
         'emergency_name': _emerNameCtrl.text,
         'emergency_phone': _emerPhoneCtrl.text,
         'emergency_relation': _emerRelationCtrl.text,

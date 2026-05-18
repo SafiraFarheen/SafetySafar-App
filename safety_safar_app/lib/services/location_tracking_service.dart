@@ -65,6 +65,7 @@ class LocationTrackingService {
   final String _authToken;
   Timer? _periodicTimer;
   StreamSubscription<Position>? _positionStream;
+  Function(SafetyUpdate)? onSafetyUpdate;
 
   // Geofence Throttling State
   bool _isCurrentlyOutside = false;
@@ -74,8 +75,15 @@ class LocationTrackingService {
   static const double centerLng = 78.9629;
 
   LocationTrackingService(this._authToken);
+  Future<void> startTracking(
+    Function(String) onStatus,
+    Function(String) onError, {
+    Function(AnomalyEvent)? onAnomalyDetected,
+    Function(SafetyUpdate)? onSafetyUpdate,
+  }) async {
 
-  Future<void> startTracking(Function(String) onStatus, Function(String) onError, {Function(AnomalyEvent)? onAnomalyDetected}) async {
+    this.onSafetyUpdate = onSafetyUpdate;
+  
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
     ).listen((pos) {

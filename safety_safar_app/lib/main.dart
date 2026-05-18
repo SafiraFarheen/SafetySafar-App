@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'home_screen.dart';
 import 'login_role_selector_screen.dart';
@@ -14,9 +12,6 @@ import 'reset_password_screen.dart';
 import 'screens/weather_screen.dart';
 import 'screens/tourist_dashboard.dart';
 import 'screens/authority_dashboard.dart';
-import 'screens/tourist_dashboard.dart';
-import 'screens/authority_dashboard.dart';
-import 'screens/admin_dashboard.dart';
 import 'services/notification_service.dart';
 import 'services/background_location_service.dart';
 
@@ -24,15 +19,18 @@ import 'services/background_location_service.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+
   final notif = message.notification;
   if (notif == null) return;
 
   final plugin = FlutterLocalNotificationsPlugin();
+
   await plugin.initialize(
     const InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     ),
   );
+
   await plugin.show(
     message.hashCode,
     notif.title ?? 'SafetySafar Alert',
@@ -51,27 +49,28 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
 }
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-
   await NotificationService.init();
 
-
-  // Initialize background location service (does not require Firebase)
+  // Initialize background location service
   await initBackgroundService();
 
   try {
     await Firebase.initializeApp();
+
     debugPrint('[Firebase] ✓ Firebase initialized successfully');
 
-    // Register background FCM handler (app fully killed)
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // Background handler
+    FirebaseMessaging.onBackgroundMessage(
+      _firebaseMessagingBackgroundHandler,
+    );
 
-    // Show notification when FCM arrives and app is in foreground
+    // Foreground notifications
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       final notif = message.notification;
+
       if (notif != null) {
         await NotificationService.showRawAlert(
           title: notif.title ?? 'SafetySafar Alert',
@@ -79,14 +78,9 @@ void main() async {
         );
       }
     });
-
-    
-
   } catch (e) {
     debugPrint("[Firebase] ✗ Initialization failed: $e");
-    debugPrint("[Firebase] ✗ Initialization failed: $e");
   }
-
 
   runApp(const SafetySafarApp());
 }
@@ -120,39 +114,11 @@ class SafetySafarApp extends StatelessWidget {
     return const LoginRoleSelectorScreen();
   }
 
-  Future<Widget> _getInitialScreen() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-
-    if (isLoggedIn) {
-      final role = prefs.getString('role') ?? 'tourist';
-      final authToken = prefs.getString('authToken') ?? '';
-      final userId = prefs.getString('userId') ?? '';
-
-      if (role.toLowerCase() == 'authority') {
-        return AuthorityDashboard(
-          authToken: authToken,
-          userId: userId,
-        );
-      }
-
-      return TouristDashboard(
-        authToken: authToken,
-        userId: userId,
-      );
-    }
-
-    return const LoginRoleSelectorScreen();
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Safety Safar',
       debugShowCheckedModeBanner: false,
-
-
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -173,24 +139,6 @@ class SafetySafarApp extends StatelessWidget {
       home: FutureBuilder<Widget>(
         future: _getInitialScreen(),
         builder: (context, snapshot) {
-
-          if (!snapshot.hasData) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
-
-          return snapshot.data!;
-        },
-      ),
-
-
-      home: FutureBuilder<Widget>(
-        future: _getInitialScreen(),
-        builder: (context, snapshot) {
-
           if (!snapshot.hasData) {
             return const Scaffold(
               body: Center(

@@ -4,11 +4,11 @@ import 'dart:convert';
 class LLMChatbotService {
   // API keys must be provided via build/runtime configuration.
   // Use `--dart-define=GROQ_API_KEY=...` and `--dart-define=HF_API_KEY=...` when building.
-  static const String _groqApiKey ="YOUR_GROQ_API_KEY";
+  static const String _groqApiKey = 'YOUR_GROQ_API_KEY';
   static const String _groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
 
   // Using Hugging Face Inference API as fallback (also free)
-  static const String _huggingFaceKey = 'hf_FKvzPqRstuVwXyZaBcDeFgHiJkLmNoPq';
+  static const String _huggingFaceKey = 'YOUR_HF_API_KEY';
   static const String _huggingFaceUrl =
       'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1';
 

@@ -101,6 +101,16 @@ def update_current_user(
 ):
     update_dict = update_data.model_dump(exclude_unset=True)
     
+    if "accommodation" in update_dict:
+        update_dict["accommodation_details"] = update_dict.pop("accommodation")
+    if "phone_number" in update_dict:
+        update_dict["phone"] = update_dict.pop("phone_number")
+    if "full_name" in update_dict:
+        names = update_dict.pop("full_name").strip().split(" ", 1)
+        update_dict["first_name"] = names[0]
+        if len(names) > 1:
+            update_dict["last_name"] = names[1]
+        
     for key, value in update_dict.items():
         setattr(current_user, key, value)
         

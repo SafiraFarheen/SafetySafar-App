@@ -929,24 +929,46 @@ class _NearbyPlacesList extends StatelessWidget {
 class _ChatbotSheet extends StatefulWidget {
   final String userLocation;
   final int safetyScore;
-  const _ChatbotSheet({this.userLocation = 'India', this.safetyScore = 100});
+  final String zoneDanger;
+  final Map<String, dynamic> riskBreakdown;
+
+  const _ChatbotSheet({
+    super.key,
+    this.userLocation = 'India',
+    this.safetyScore = 100,
+    this.zoneDanger = 'safe',
+    this.riskBreakdown = const {},
+  });
+
   @override
   State<_ChatbotSheet> createState() => _ChatbotSheetState();
 }
 
 class _ChatbotSheetState extends State<_ChatbotSheet> {
   final List<Map<String, dynamic>> _messages = [
-    {'role': 'bot', 'text': 'Hello! I\'m your SafetySafar AI Assistant. Ask me anything about travel safety, local tips, or recommendations! 🌍'}
+    {
+      'role': 'bot',
+      'text':
+          'Hello! I\'m your SafetySafar AI Assistant. Ask me anything about travel safety, local tips, or recommendations! 🌍'
+    }
   ];
+
   final _ctrl = TextEditingController();
+
   bool _isLoading = false;
+
   final ScrollController _scrollCtrl = ScrollController();
 
   @override
   void initState() {
     super.initState();
+
     if (!LLMChatbotService.isConfigured()) {
-      _messages.add({'role': 'bot', 'text': '⚠️ AI service not configured.\n\n${LLMChatbotService.getSetupInstructions()}'});
+      _messages.add({
+        'role': 'bot',
+        'text':
+            '⚠️ AI service not configured.\n\n${LLMChatbotService.getSetupInstructions()}'
+      });
     }
   }
 
@@ -959,26 +981,72 @@ class _ChatbotSheetState extends State<_ChatbotSheet> {
 
   Future<void> _sendMessage() async {
     final text = _ctrl.text.trim();
+
     if (text.isEmpty || _isLoading) return;
+
     _ctrl.clear();
+
     setState(() {
-      _messages.add({'role': 'user', 'text': text});
+      _messages.add({
+        'role': 'user',
+        'text': text,
+      });
+
       _isLoading = true;
     });
+
     _scrollToBottom();
+
     try {
-      final context = 'Location: ${widget.userLocation}\nSafety Score: ${widget.safetyScore}/100';
-      final response = await LLMChatbotService.chat(userMessage: text, context: context);
-      if (mounted) setState(() { _messages.add({'role': 'bot', 'text': response.isEmpty ? '⚠️ No response received. Please try again.' : response}); _isLoading = false; });
+      final context = '''
+Location: ${widget.userLocation}
+Safety Score: ${widget.safetyScore}/100
+Zone Danger: ${widget.zoneDanger}
+Risk Breakdown: ${widget.riskBreakdown}
+''';
+
+      final response = await LLMChatbotService.chat(
+        userMessage: text,
+        context: context,
+      );
+
+      if (mounted) {
+        setState(() {
+          _messages.add({
+            'role': 'bot',
+            'text': response.isEmpty
+                ? '⚠️ No response received. Please try again.'
+                : response,
+          });
+
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _messages.add({'role': 'bot', 'text': '❌ Error: $e'}); _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _messages.add({
+            'role': 'bot',
+            'text': '❌ Error: $e',
+          });
+
+          _isLoading = false;
+        });
+      }
     }
+
     _scrollToBottom();
   }
 
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 150), () {
-      if (_scrollCtrl.hasClients) _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
@@ -986,76 +1054,194 @@ class _ChatbotSheetState extends State<_ChatbotSheet> {
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-      child: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Column(children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 14),
-            const Text('SafetySafar AI Assistant', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('Real-time travel safety guidance powered by AI', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-          ]),
+
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(32),
         ),
-        const Divider(height: 20),
-        Expanded(
-          child: ListView.builder(
-            controller: _scrollCtrl,
-            padding: const EdgeInsets.all(16),
-            itemCount: _messages.length + (_isLoading ? 1 : 0),
-            itemBuilder: (_, i) {
-              if (i == _messages.length) {
-                return Align(alignment: Alignment.centerLeft, child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(16)), child: const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))));
-              }
-              final msg = _messages[i];
-              final isUser = msg['role'] == 'user';
-              return Align(
-                alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+      ),
+
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+
+            child: Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+
                   decoration: BoxDecoration(
-                    color: isUser ? const Color(0xFF0E3A7E) : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  child: Text(msg['text'] ?? '', style: TextStyle(color: isUser ? Colors.white : Colors.black87, fontSize: 14, height: 1.4)),
                 ),
-              );
-            },
+
+                const SizedBox(height: 14),
+
+                const Text(
+                  'SafetySafar AI Assistant',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(
+                  'Real-time travel safety guidance powered by AI',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.of(context).viewInsets.bottom + 16),
-          child: Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _ctrl,
-                enabled: !_isLoading,
-                onSubmitted: (_) => _sendMessage(),
-                decoration: InputDecoration(
-                  hintText: _isLoading ? 'Waiting for response...' : 'Ask me anything...',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: const BorderSide(color: Color(0xFF0E3A7E), width: 2)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+
+          const Divider(height: 20),
+
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollCtrl,
+              padding: const EdgeInsets.all(16),
+
+              itemCount: _messages.length + (_isLoading ? 1 : 0),
+
+              itemBuilder: (_, i) {
+                if (i == _messages.length) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(14),
+
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+
+                      child: const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  );
+                }
+
+                final msg = _messages[i];
+                final isUser = msg['role'] == 'user';
+
+                return Align(
+                  alignment: isUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+
+                    constraints: BoxConstraints(
+                      maxWidth:
+                          MediaQuery.of(context).size.width * 0.75,
+                    ),
+
+                    decoration: BoxDecoration(
+                      color: isUser
+                          ? const Color(0xFF0E3A7E)
+                          : Colors.grey.shade100,
+
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+
+                    child: Text(
+                      msg['text'] ?? '',
+
+                      style: TextStyle(
+                        color: isUser
+                            ? Colors.white
+                            : Colors.black87,
+
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
+
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ctrl,
+                    enabled: !_isLoading,
+                    onSubmitted: (_) => _sendMessage(),
+
+                    decoration: InputDecoration(
+                      hintText: _isLoading
+                          ? 'Waiting for response...'
+                          : 'Ask me anything...',
+
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+
+                      contentPadding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+
+                const SizedBox(width: 8),
+
+                GestureDetector(
+                  onTap: _isLoading ? null : _sendMessage,
+
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+
+                    decoration: BoxDecoration(
+                      color: _isLoading
+                          ? Colors.grey.shade400
+                          : const Color(0xFF0E3A7E),
+
+                      shape: BoxShape.circle,
+                    ),
+
+                    child: Icon(
+                      _isLoading
+                          ? Icons.hourglass_empty
+                          : Icons.send_rounded,
+
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _isLoading ? null : _sendMessage,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: _isLoading ? Colors.grey.shade400 : const Color(0xFF0E3A7E), shape: BoxShape.circle),
-                child: Icon(_isLoading ? Icons.hourglass_empty : Icons.send_rounded, color: Colors.white, size: 20),
-              ),
-            ),
-          ]),
-        ),
-      ]),
+          ),
+        ],
+      ),
     );
   }
 }
