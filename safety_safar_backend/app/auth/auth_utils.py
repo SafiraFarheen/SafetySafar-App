@@ -39,13 +39,14 @@ async def send_reset_email(email: str, token: str):
     html = f"""
     <html>
     <body>
-        <p>Hi,</p>
-        <p>You requested a password reset for <b>Safety Safar</b>.</p>
-        <p>Use the token below to reset your password in the mobile app:</p>
-        <p><b>{token}</b></p>
-        <p>If the link opens in a browser, you can also try this URL:</p>
-        <a href="{reset_link}">{reset_link}</a>
-        <p>If you did not request this, please ignore this email.</p>
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Safety Safar - Password Reset</h2>
+            <p>Hi,</p>
+            <p>You requested a password reset for your account.</p>
+            <p>Please copy the token below and paste it into the mobile app:</p>
+            <p style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 16px; color: #333; border-radius: 5px; word-break: break-all;"><b>{token}</b></p>
+            <p>If you did not request this, please safely ignore this email.</p>
+        </div>
     </body>
     </html>
     """
