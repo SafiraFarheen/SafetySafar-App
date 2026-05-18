@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import '../login_screen.dart';
+import '../login_role_selector_screen.dart';
 
 class AuthoritySettingsScreen extends StatefulWidget {
   final String authToken;
@@ -55,7 +55,7 @@ class _AuthoritySettingsScreenState extends State<AuthoritySettingsScreen> {
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const LoginScreen()),
+                    builder: (_) => const LoginRoleSelectorScreen()),
                 (route) => false,
               );
             },
