@@ -21,3 +21,9 @@ class UserCreate(BaseModel):
     emergency_name: Optional[str] = None
     emergency_phone: Optional[str] = None
     emergency_relation: Optional[str] = None
+
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
