@@ -9,6 +9,7 @@ import 'screens/tourist_dashboard.dart';
 import 'screens/authority_dashboard.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/country_codes.dart';
 import 'utils/api_config.dart';
 
@@ -147,31 +148,43 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _navigateToDashboard(String role, String authToken, String userId) {
-  final normalizedRole = role.toLowerCase();
+  Future<void> _navigateToDashboard(
+    String role,
+    String authToken,
+    String userId,
+  ) async {
 
-  if (normalizedRole == 'authority') {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AuthorityDashboard(
-          authToken: authToken,
-          userId: userId,
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setBool('isLoggedIn', true);
+    await prefs.setString('role', role);
+    await prefs.setString('authToken', authToken);
+    await prefs.setString('userId', userId);
+
+    final normalizedRole = role.toLowerCase();
+
+    if (normalizedRole == 'authority') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AuthorityDashboard(
+            authToken: authToken,
+            userId: userId,
+          ),
         ),
-      ),
-    );
-  } else {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TouristDashboard(
-          authToken: authToken,
-          userId: userId,
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TouristDashboard(
+            authToken: authToken,
+            userId: userId,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
-}
   Future<void> _handleBackendVerification(String phone) async {
     final String cleanedPhone = phone.replaceAll(RegExp(r'^\+91'), '').trim();
     try {
