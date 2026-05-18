@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'admin_authority_management_screen.dart';
-import '../login_screen.dart';
+import '../login_role_selector_screen.dart';
 import '../utils/api_config.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -93,7 +93,7 @@ class _AdminDashboardState extends State<AdminDashboard>
             ),
             onPressed: () => Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              MaterialPageRoute(builder: (_) => const LoginRoleSelectorScreen()),
               (r) => false,
             ),
             child: const Text('Logout',

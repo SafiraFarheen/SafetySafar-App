@@ -51,3 +51,12 @@ class User(Base):
     # Password Reset & OTP
     reset_token = Column(String, nullable=True)
     otp_code = Column(String, nullable=True)
+
+
+    # Email Verification
+    email_verified = Column(Boolean, default=False)
+    email_otp_code = Column(String, nullable=True)
+    email_otp_expires = Column(DateTime(timezone=True), nullable=True)
+
+    # FCM Push Notifications
+    fcm_token = Column(String, nullable=True)  

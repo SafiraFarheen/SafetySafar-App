@@ -57,3 +57,5 @@ Thumbs.db
 # Logs
 # =========================
 *.log
+
+safety_safar_backend/serviceAccountKey.json

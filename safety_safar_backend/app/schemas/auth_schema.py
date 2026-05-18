@@ -14,6 +14,13 @@ class VerifyOTPRequest(BaseModel):
     phone: str
     otp: str
 
+class SendEmailOTPRequest(BaseModel):
+    email: EmailStr
+
+class VerifyEmailOTPRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
 class AuthorityRegisterRequest(BaseModel):
     first_name: str
     last_name: str

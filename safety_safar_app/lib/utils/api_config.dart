@@ -1,13 +1,15 @@
 class ApiConfig {
   // ── Change this IP when you switch networks ──────────────────
-  static const String serverIp = '192.168.29.143';
-  static const String baseUrl = 'http://$serverIp:8000';
+  /// static const String serverIp = '192.168.29.143';
+  static const String baseUrl = 'https://safetysafar-app.onrender.com';
 
   // ── Auth ─────────────────────────────────────────────────────
   static const String login          = '$baseUrl/login';
   static const String register       = '$baseUrl/register';
   static const String sendOtp        = '$baseUrl/send-otp';
   static const String verifyOtp      = '$baseUrl/verify-otp';
+  static String get sendEmailOtp => '$baseUrl/send-email-otp';
+  static String get verifyEmailOtp => '$baseUrl/verify-email-otp';
   static const String forgotPassword = '$baseUrl/forgot-password';
   static const String resetPassword  = '$baseUrl/reset-password';
 
@@ -52,6 +54,8 @@ class ApiConfig {
 
   // Danger zones & AI assessment
   static String get dangerZones => '$baseUrl/anomaly/danger-zones';
+  static String get addDangerZone => '$baseUrl/anomaly/danger-zones';
+  static String deleteDangerZone(String id) => '$baseUrl/anomaly/danger-zones/$id';
   static String dangerZonesNear(
     double lat,
     double lng, {

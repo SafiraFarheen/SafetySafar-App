@@ -21,14 +21,3 @@ class UserCreate(BaseModel):
     emergency_name: Optional[str] = None
     emergency_phone: Optional[str] = None
     emergency_relation: Optional[str] = None
-
-class UserUpdate(BaseModel):
-    phone: Optional[str] = None
-    dob: Optional[str] = None
-    gender: Optional[str] = None
-    arrival_date: Optional[str] = None
-    departure_date: Optional[str] = None
-    accommodation_details: Optional[str] = None
-    emergency_name: Optional[str] = None
-    emergency_phone: Optional[str] = None
-    emergency_relation: Optional[str] = None

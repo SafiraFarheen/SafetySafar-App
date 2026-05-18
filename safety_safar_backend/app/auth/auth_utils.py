@@ -31,6 +31,7 @@ mail_conf = ConnectionConfig(
     MAIL_SSL_TLS=settings.MAIL_SSL_TLS,
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=False
+    VALIDATE_CERTS=False
 )
 
 async def send_reset_email(email: str, token: str):
@@ -39,6 +40,14 @@ async def send_reset_email(email: str, token: str):
     html = f"""
     <html>
     <body>
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Safety Safar - Password Reset</h2>
+            <p>Hi,</p>
+            <p>You requested a password reset for your account.</p>
+            <p>Please copy the token below and paste it into the mobile app:</p>
+            <p style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 16px; color: #333; border-radius: 5px; word-break: break-all;"><b>{token}</b></p>
+            <p>If you did not request this, please safely ignore this email.</p>
+        </div>
         <div style="font-family: Arial, sans-serif; padding: 20px;">
             <h2>Safety Safar - Password Reset</h2>
             <p>Hi,</p>
@@ -61,6 +70,39 @@ async def send_reset_email(email: str, token: str):
     fm = FastMail(mail_conf)
     await fm.send_message(message)
 
+# 📱 SMS Sending via Twilio
+def send_otp_sms(phone: str, otp: str):
+    """Send OTP via SMS using Twilio"""
+    if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
+        print(f"[WARNING] Twilio not configured.")
+        print(f"[DEBUG] OTP for {phone} is: {otp}")
+        print(f"[INFO] To enable real SMS: Add these to .env:")
+        print(f"       TWILIO_ACCOUNT_SID=your_account_sid")
+        print(f"       TWILIO_AUTH_TOKEN=your_auth_token") 
+        print(f"       TWILIO_PHONE_NUMBER=your_twilio_phone")
+        
+        # Fallback: Try to send via email instead
+        try:
+            send_otp_email(phone, otp)
+            return "email_sent"
+        except:
+            return None
+    
+    try:
+        from twilio.rest import Client
+        
+        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+        message = client.messages.create(
+            body=f"Your SafetySafar OTP is: {otp}. Do not share this with anyone.",
+            from_=settings.TWILIO_PHONE_NUMBER,
+            to=f"+91{phone}" if len(phone) == 10 else f"+{phone}"
+        )
+        print(f"[SUCCESS] SMS sent to {phone}. Message SID: {message.sid}")
+        return message.sid
+    except Exception as e:
+        print(f"[ERROR] Failed to send SMS to {phone}: {str(e)}")
+        print(f"[DEBUG] OTP for {phone} is: {otp}")
+        return None
 # 📱 SMS Sending via Twilio
 def send_otp_sms(phone: str, otp: str):
     """Send OTP via SMS using Twilio"""
@@ -121,3 +163,36 @@ If you didn't request this code, please ignore this email.
 
 def generate_otp(length=6):
     return ''.join(random.choices(string.digits, k=length))
+
+
+async def send_email_otp_code(email: str, otp: str) -> bool:
+    """Send email verification OTP. Returns True if sent, False if not configured."""
+    if not settings.MAIL_USERNAME:
+        print(f"[DEBUG] Email OTP for {email}: {otp}  (configure MAIL_USERNAME in .env to send real emails)")
+        return False
+
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;padding:20px;">
+        <h2 style="color:#0E3A7E;">SafetySafar - Verify Your Email</h2>
+        <p>Your verification code is:</p>
+        <div style="font-size:36px;font-weight:bold;letter-spacing:10px;color:#0E3A7E;
+                    background:#EEF2FF;padding:16px 24px;border-radius:8px;display:inline-block;">
+            {otp}
+        </div>
+        <p style="margin-top:20px;">This code expires in <b>10 minutes</b>.</p>
+        <p style="color:#888;">Do not share this code with anyone.</p>
+    </body></html>
+    """
+    message = MessageSchema(
+        subject="SafetySafar – Email Verification Code",
+        recipients=[email],
+        body=html,
+        subtype=MessageType.html,
+    )
+    try:
+        fm = FastMail(mail_conf)
+        await fm.send_message(message)
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to send email OTP to {email}: {e}")
+        return False    

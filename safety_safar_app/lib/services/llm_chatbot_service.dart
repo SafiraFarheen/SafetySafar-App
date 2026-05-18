@@ -4,12 +4,13 @@ import 'dart:convert';
 class LLMChatbotService {
   // API keys must be provided via build/runtime configuration.
   // Use `--dart-define=GROQ_API_KEY=...` and `--dart-define=HF_API_KEY=...` when building.
-  static const String _groqApiKey = String.fromEnvironment('GROQ_API_KEY', defaultValue: '');
+  static const String _groqApiKey ="YOUR_GROQ_API_KEY";
   static const String _groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
 
   // Using Hugging Face Inference API as fallback (also free)
-  static const String _huggingFaceKey = String.fromEnvironment('HF_API_KEY', defaultValue: '');
-  static const String _huggingFaceUrl = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1';
+  static const String _huggingFaceKey = 'hf_FKvzPqRstuVwXyZaBcDeFgHiJkLmNoPq';
+  static const String _huggingFaceUrl =
+      'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1';
 
   static const Duration _timeout = Duration(seconds: 15);
 
@@ -59,7 +60,11 @@ class LLMChatbotService {
       final payload = {
         'model': 'llama-3.1-8b-instant', // Updated: Changed from deprecated mixtral model
         'messages': [
-          {'role': 'system', 'content': 'You are SafetySafar safety assistant. Answer in 1-2 sentences.'},
+          {'role': 'system', 'content': 'You are SafetySafar, an AI safety assistant for tourists in India. '
+                'You receive real-time safety data computed by our AI anomaly detection system. '
+                'Give concise, actionable safety advice (2-3 sentences). '
+                'If zone danger is high or critical, strongly advise the tourist to leave immediately. '
+                'Context about the tourist: $context',},
           {'role': 'user', 'content': userMessage},
         ],
         'temperature': 0.7,
@@ -192,15 +197,34 @@ Response:''';
   }
 
   /// Check if API keys are configured (not using placeholder values)
-  static bool isConfigured() {
-    bool hasGroqKey = _groqApiKey.startsWith('gsk_') && _groqApiKey != 'gsk_nxKzF8qP1M2nR3oQ4sT5uV6wX7yZ8aB';
-    bool hasHFKey = _huggingFaceKey.startsWith('hf_') && _huggingFaceKey != 'hf_FKvzPqRstuVwXyZaBcDeFgHiJkLmNoPq';
-    
-    print('🔍 Config Check: Groq=$hasGroqKey, HF=$hasHFKey');
-    print('   Groq Key starts with: ${_groqApiKey.substring(0, 10)}...');
-    
-    return hasGroqKey || hasHFKey;
+  /// Check if API keys are configured safely
+static bool isConfigured() {
+
+  bool hasGroqKey =
+      _groqApiKey.startsWith('gsk_') &&
+      _groqApiKey.isNotEmpty;
+
+  bool hasHFKey =
+      _huggingFaceKey.startsWith('hf_') &&
+      _huggingFaceKey.isNotEmpty;
+
+  print('🔍 Config Check: Groq=$hasGroqKey, HF=$hasHFKey');
+
+  // Prevent RangeError when key is empty
+  if (_groqApiKey.isNotEmpty) {
+    final previewLength =
+        _groqApiKey.length >= 10 ? 10 : _groqApiKey.length;
+
+    print(
+      '   Groq Key starts with: '
+      '${_groqApiKey.substring(0, previewLength)}...',
+    );
+  } else {
+    print('   Groq Key is EMPTY');
   }
+
+  return hasGroqKey || hasHFKey;
+}
 
   /// Get setup instructions
   static String getSetupInstructions() {
