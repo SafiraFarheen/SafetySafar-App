@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from app.database import engine, Base, ensure_user_columns, ensure_alert_columns
 from app.models.users import User
 from app.models.digital_id import DigitalID
+from app.schemas.users_schema import UserCreate, UserUpdate
 from fastapi import Depends
 from app.auth.auth_routes import router as auth_router
 from app.tourists.routes import router as tourists_router
@@ -73,3 +74,19 @@ def read_current_user(current_user: User = Depends(get_current_user)):
         "kyc_verified": current_user.kyc_verified,
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None
     }
+
+@app.put("/me")
+def update_current_user(
+    update_data: UserUpdate, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    update_dict = update_data.model_dump(exclude_unset=True)
+    
+    for key, value in update_dict.items():
+        setattr(current_user, key, value)
+        
+    db.commit()
+    db.refresh(current_user)
+    
+    return {"message": "Profile updated successfully"}
