@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:safety_safar_app/utils/api_config.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -13,6 +14,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _emailController = TextEditingController();
   final _tokenController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
   bool _isSending = false;
   bool _isResetting = false;
   bool _emailSent = false;
@@ -37,7 +39,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     setState(() => _isSending = true);
     try {
       final response = await http.post(
-        Uri.parse('http://176.168.0.71:8000/forgot-password'),
+        Uri.parse(ApiConfig.forgotPassword),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
@@ -75,7 +77,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     setState(() => _isResetting = true);
     try {
       final response = await http.post(
-        Uri.parse('http://176.168.0.71:8000/reset-password'),
+        Uri.parse(ApiConfig.resetPassword),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'token': token, 'new_password': newPassword}),
       );
@@ -146,7 +148,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0E3A7E)),
                 child: _isSending
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Send reset token', style: TextStyle(fontSize: 16)),
+                    : const Text('Send reset token', style: TextStyle(fontSize: 16, color: Colors.white)),
               ),
             ),
             const SizedBox(height: 32),
@@ -165,10 +167,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
+              obscureText: !_isPasswordVisible,
+              decoration: InputDecoration(
                 labelText: 'New password',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isPasswordVisible = !_isPasswordVisible;
+                    });
+                  },
+                ),
               ),
             ),
             const SizedBox(height: 24),
