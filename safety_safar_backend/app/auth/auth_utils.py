@@ -31,7 +31,6 @@ mail_conf = ConnectionConfig(
     MAIL_SSL_TLS=settings.MAIL_SSL_TLS,
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=False
-    VALIDATE_CERTS=False
 )
 
 async def send_reset_email(email: str, token: str):
