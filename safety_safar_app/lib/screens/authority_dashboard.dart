@@ -1,40 +1,57 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'tourists_list_screen.dart';
+import 'kyc_pending_list_screen.dart';
+import 'live_alerts_map_screen.dart';
+import 'sos_alerts_screen.dart';
+import 'authority_settings_screen.dart';
+import 'efir_management_screen.dart';
 import 'admin_authority_management_screen.dart';
-import '../login_role_selector_screen.dart';
+import '../login_screen.dart';
 import '../utils/api_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../login_role_selector_screen.dart';
 
-class AdminDashboard extends StatefulWidget {
+class AuthorityDashboard extends StatefulWidget {
   final String authToken;
   final String userId;
 
-  const AdminDashboard({
+  const AuthorityDashboard({
     super.key,
     required this.authToken,
     required this.userId,
   });
 
   @override
-  State<AdminDashboard> createState() => _AdminDashboardState();
+  State<AuthorityDashboard> createState() => _AuthorityDashboardState();
 }
 
-class _AdminDashboardState extends State<AdminDashboard>
+class _AuthorityDashboardState extends State<AuthorityDashboard>
     with TickerProviderStateMixin {
   int _selectedIndex = 0;
+  int totalTourists = 0;
+  int pendingKyc = 0;
+  int activeAlertsCount = 0;
+  List alertsList = [];
   bool isLoading = true;
   Map<String, dynamic>? profileData;
   late AnimationController _fadeController;
 
-  static const Color _primaryColor = Color(0xFF0E3A7E);
-  static const Color _secondaryColor = Color(0xFFFF7A00);
-  static const Color _backgroundColor = Color(0xFFF4F7F9);
-
-  final List<_NavItem> _navItems = [
-    const _NavItem(Icons.dashboard_rounded, 'Dashboard'),
-    const _NavItem(Icons.admin_panel_settings_outlined, 'Manage'),
-    const _NavItem(Icons.settings_rounded, 'Settings'),
-  ];
+  // ── nav items ──────────────────────────────────────────────────
+  List<_NavItem> get _getNavItems {
+    final isAdmin = profileData?['role'] == 'admin';
+    return [
+      const _NavItem(Icons.dashboard_rounded, 'Dashboard'),
+      const _NavItem(Icons.people_alt_rounded, 'Tourists'),
+      const _NavItem(Icons.verified_user_rounded, 'KYC'),
+      const _NavItem(Icons.emergency_rounded, 'SOS'),
+      const _NavItem(Icons.article_rounded, 'eFIR'),
+      const _NavItem(Icons.map_rounded, 'Tracking'),
+      if (isAdmin) const _NavItem(Icons.admin_panel_settings_outlined, 'Manage'),
+      const _NavItem(Icons.settings_rounded, 'Settings'),
+    ];
+  }
 
   @override
   void initState() {
@@ -42,7 +59,8 @@ class _AdminDashboardState extends State<AdminDashboard>
     _fadeController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 350))
       ..forward();
-    _loadAdminProfile();
+    _refreshAll();
+    _startPolling();
   }
 
   @override
@@ -51,20 +69,50 @@ class _AdminDashboardState extends State<AdminDashboard>
     super.dispose();
   }
 
-  Future<void> _loadAdminProfile() async {
+  void _startPolling() {
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 10));
+      if (!mounted) return false;
+      _refreshAll();
+      return true;
+    });
+  }
+
+  Future<void> _refreshAll() async {
     try {
-      final meRes = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/me'),
+      final statsRes = await http.get(
+        Uri.parse(ApiConfig.dashboardStats),
         headers: {'Authorization': 'Bearer ${widget.authToken}'},
       );
-      if (meRes.statusCode == 200 && mounted) {
+      final alertsRes = await http.get(
+        Uri.parse(ApiConfig.alerts),
+        headers: {'Authorization': 'Bearer ${widget.authToken}'},
+      );
+      if (profileData == null) {
+        final meRes = await http.get(
+          Uri.parse('${ApiConfig.baseUrl}/me'),
+          headers: {'Authorization': 'Bearer ${widget.authToken}'},
+        );
+        if (meRes.statusCode == 200 && mounted) {
+          setState(() => profileData = jsonDecode(meRes.body));
+        }
+      }
+      if (statsRes.statusCode == 200 &&
+          alertsRes.statusCode == 200 &&
+          mounted) {
+        final stats = jsonDecode(statsRes.body);
+        final dynamic ad = jsonDecode(alertsRes.body);
         setState(() {
-          profileData = jsonDecode(meRes.body);
+          totalTourists = stats['total_tourists'] ?? 0;
+          pendingKyc = stats['pending_kyc'] ?? 0;
+          alertsList = (ad is List) ? ad : (ad['alerts'] ?? []);
+          activeAlertsCount =
+              alertsList.where((a) => a['status'] == 'active').length;
           isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Profile load error: $e');
+      debugPrint('Refresh error: $e');
       if (mounted) setState(() => isLoading = false);
     }
   }
@@ -75,15 +123,13 @@ class _AdminDashboardState extends State<AdminDashboard>
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Logout',
-            style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Outfit')),
-        content: const Text('Are you sure you want to logout?',
-            style: TextStyle(fontFamily: 'Outfit')),
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        content:
+            const Text('Are you sure you want to end your monitoring session?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel',
-                style: TextStyle(fontFamily: 'Outfit', color: _primaryColor)),
-          ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -91,35 +137,45 @@ class _AdminDashboardState extends State<AdminDashboard>
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () => Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginRoleSelectorScreen()),
-              (r) => false,
-            ),
-            child: const Text('Logout',
-                style: TextStyle(fontFamily: 'Outfit')),
+            onPressed: () async {
+
+              final prefs = await SharedPreferences.getInstance();
+
+              await prefs.clear();
+
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginRoleSelectorScreen()),
+                (r) => false,
+              );
+            },
+
+            child: const Text('Logout'),
           ),
         ],
       ),
     );
   }
 
+  // ──────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _backgroundColor,
+      backgroundColor: const Color(0xFFF4F7F9),
       body: FadeTransition(opacity: _fadeController, child: _buildBody()),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
 
+  // ── BOTTOM NAV — icon-pill style, NOT congested ───────────────
   Widget _buildBottomNav() {
+    final navItems = _getNavItems;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withAlpha(20),
+              color: Colors.black.withValues(alpha:0.07),
               blurRadius: 16,
               offset: const Offset(0, -3))
         ],
@@ -129,9 +185,10 @@ class _AdminDashboardState extends State<AdminDashboard>
         child: SizedBox(
           height: 64,
           child: Row(
-            children: List.generate(_navItems.length, (i) {
+            children: List.generate(navItems.length, (i) {
               final bool selected = _selectedIndex == i;
-              final item = _navItems[i];
+              final item = navItems[i];
+              final int badge = (i == 3) ? activeAlertsCount : 0;
 
               return Expanded(
                 child: GestureDetector(
@@ -140,23 +197,47 @@ class _AdminDashboardState extends State<AdminDashboard>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOut,
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? _primaryColor
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          item.icon,
-                          size: 22,
-                          color: selected
-                              ? Colors.white
-                              : const Color(0xFF94A3B8),
-                        ),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOut,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? const Color(0xFF0E3A7E)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              item.icon,
+                              size: 22,
+                              color: selected
+                                  ? Colors.white
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                          if (badge > 0)
+                            Positioned(
+                              top: -4,
+                              right: -4,
+                              child: Container(
+                                width: 16,
+                                height: 16,
+                                decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle),
+                                child: Center(
+                                  child: Text('$badge',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900)),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 3),
                       AnimatedDefaultTextStyle(
@@ -167,9 +248,8 @@ class _AdminDashboardState extends State<AdminDashboard>
                               ? FontWeight.w800
                               : FontWeight.w500,
                           color: selected
-                              ? _primaryColor
+                              ? const Color(0xFF0E3A7E)
                               : const Color(0xFF94A3B8),
-                          fontFamily: 'Outfit',
                         ),
                         child: Text(item.label),
                       ),
@@ -184,277 +264,74 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
+  // ── BODY SWITCHER ──────────────────────────────────────────────
   Widget _buildBody() {
+    final isAdmin = profileData?['role'] == 'admin';
+    
     switch (_selectedIndex) {
       case 0:
         return _buildDashboardTab();
       case 1:
-        return AdminAuthorityManagementScreen(authToken: widget.authToken);
+        return TouristsListScreen(
+            authToken: widget.authToken, userId: widget.userId);
       case 2:
-        return _buildSettingsTab();
+        return KYCPendingListScreen(
+            authToken: widget.authToken, userId: widget.userId);
+      case 3:
+        return SOSAlertsScreen(authToken: widget.authToken);
+      case 4:
+        return EFirManagementScreen(authToken: widget.authToken);
+      case 5:
+        return LiveAlertsMapScreen(
+            authToken: widget.authToken, alerts: alertsList);
+      case 6:
+        return isAdmin
+            ? AdminAuthorityManagementScreen(authToken: widget.authToken)
+            : AuthoritySettingsScreen(
+              authToken: widget.authToken,
+              userId: widget.userId,
+              profileData: profileData,
+            );
+      case 7:
+        return AuthoritySettingsScreen(
+          authToken: widget.authToken,
+          userId: widget.userId,
+          profileData: profileData,
+        );
       default:
         return const Center(child: Text('Coming Soon'));
     }
   }
 
+  // ── DASHBOARD TAB ──────────────────────────────────────────────
   Widget _buildDashboardTab() {
-    final String name =
-        '${profileData?['first_name'] ?? ''} ${profileData?['last_name'] ?? 'Admin'}'
-            .trim();
-
     return CustomScrollView(
       slivers: [
-        SliverAppBar(
-          expandedHeight: 140,
-          floating: false,
-          pinned: true,
-          elevation: 0,
-          backgroundColor: _primaryColor,
-          automaticallyImplyLeading: false,
-          title: const Text('Admin Dashboard',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Outfit')),
-          flexibleSpace: FlexibleSpaceBar(
-            background: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [_primaryColor, Color(0xFF1B5BA8)],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 60, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Welcome back, $name',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Outfit',
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'System Administrator',
-                      style: TextStyle(
-                        color: Colors.white.withAlpha(200),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        fontFamily: 'Outfit',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Center(
-                child: GestureDetector(
-                  onTap: _handleLogout,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(200),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.logout, size: 16, color: _primaryColor),
-                        SizedBox(width: 4),
-                        Text('Logout',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _primaryColor,
-                              fontFamily: 'Outfit',
-                            )),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+        _buildSliverAppBar(),
         SliverToBoxAdapter(
           child: isLoading
               ? const SizedBox(
                   height: 300,
                   child: Center(
-                      child: CircularProgressIndicator(
-                          color: _primaryColor)))
+                      child:
+                          CircularProgressIndicator(color: Color(0xFF0E3A7E))))
               : Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Info Cards
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [_primaryColor, Color(0xFF1B5BA8)],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _primaryColor.withAlpha(30),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withAlpha(200),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.admin_panel_settings_outlined,
-                                    color: _primaryColor,
-                                    size: 28,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Role',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: 'Outfit',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        profileData?['role'] ?? 'admin',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700,
-                                          fontFamily: 'Outfit',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const Divider(
-                                color: Colors.white30, height: 0),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Email',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: 'Outfit',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        profileData?['email'] ?? 'N/A',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          fontFamily: 'Outfit',
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Department',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: 'Outfit',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        profileData?['department'] ?? 'N/A',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          fontFamily: 'Outfit',
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                      _buildSOSBanner(),
+                      const SizedBox(height: 20),
+                      _buildStatsGrid(),
                       const SizedBox(height: 24),
-                      // Quick Actions
-                      const Text(
-                        'QUICK ACTIONS',
-                        style: TextStyle(
-                          color: _primaryColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                          fontFamily: 'Outfit',
-                        ),
-                      ),
+                      _sectionTitle('QUICK ACTIONS'),
                       const SizedBox(height: 12),
-                      _buildActionCard(
-                        icon: Icons.admin_panel_settings_outlined,
-                        title: 'Manage Authorities',
-                        subtitle: 'Approve or reject authority registrations',
-                        onTap: () => setState(() => _selectedIndex = 1),
-                      ),
+                      _buildQuickActions(),
+                      const SizedBox(height: 24),
+                      _sectionTitle('LIVE INCIDENT FEED'),
+                      const SizedBox(height: 12),
+                      _buildAlertFeed(),
+                      const SizedBox(height: 80),
                     ],
                   ),
                 ),
@@ -463,193 +340,398 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  Widget _buildActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(8),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
+  // ── SLIVER APP BAR ─────────────────────────────────────────────
+  Widget _buildSliverAppBar() {
+    final String name =
+        '${profileData?['first_name'] ?? ''} ${profileData?['last_name'] ?? 'Officer'}'
+            .trim();
+    return SliverAppBar(
+      expandedHeight: 120,
+      floating: false,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: const Color(0xFF0E3A7E),
+      automaticallyImplyLeading: false,
+      title: const Text('Safety Command Center',
+          style: TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w800)),
+      actions: [
+        if (activeAlertsCount > 0)
+          Container(
+            margin: const EdgeInsets.only(right: 4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+                color: Colors.red, borderRadius: BorderRadius.circular(20)),
+            child: Row(children: [
+              const Icon(Icons.emergency_rounded,
+                  color: Colors.white, size: 13),
+              const SizedBox(width: 4),
+              Text('$activeAlertsCount',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900)),
+            ]),
+          ),
+        IconButton(
+          onPressed: _handleLogout,
+          icon: const Icon(Icons.logout_rounded,
+              color: Colors.white, size: 22),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: _secondaryColor.withAlpha(30),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: _secondaryColor, size: 26),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF0A2A5E), Color(0xFF1E40AF)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: _primaryColor,
-                      fontFamily: 'Outfit',
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Colors.white.withValues(alpha:0.2),
+                    child: Text(
+                      (name.isNotEmpty) ? name[0].toUpperCase() : 'A',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[600],
-                      fontFamily: 'Outfit',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Safety Command',
+                            style: TextStyle(
+                                color: Colors.white60, fontSize: 11)),
+                        Text(
+                          name.isEmpty ? 'Authority Officer' : name,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded,
-                size: 16, color: Colors.grey[400]),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSettingsTab() {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          AppBar(
-            title: const Text('Settings',
-                style: TextStyle(
-                    color: Color(0xFF0E3A7E),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    fontFamily: 'Outfit')),
-            backgroundColor: Colors.white,
-            elevation: 0,
-            leading: const SizedBox(),
+  // ── SOS BANNER ────────────────────────────────────────────────
+  Widget _buildSOSBanner() {
+    if (activeAlertsCount == 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECFDF5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.green.withValues(alpha:0.3)),
+        ),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha:0.12),
+                shape: BoxShape.circle),
+            child: const Icon(Icons.shield_rounded,
+                color: Colors.green, size: 20),
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Account',
+          const SizedBox(width: 12),
+          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('System Status: All Clear',
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.green,
+                    fontSize: 14)),
+            Text('No active SOS alerts',
+                style: TextStyle(color: Colors.green, fontSize: 11)),
+          ]),
+        ]),
+      );
+    }
+    return GestureDetector(
+      onTap: () => setState(() => _selectedIndex = 3),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFFB71C1C), Color(0xFFE53935)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.red.withValues(alpha:0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6))
+          ],
+        ),
+        child: Row(children: [
+          const Icon(Icons.emergency_rounded, color: Colors.white, size: 32),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('⚠ ACTIVE SOS SIGNALS',
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: _primaryColor,
-                    letterSpacing: 0.5,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-                const SizedBox(height: 12),
+                      color: Colors.white70,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1)),
+              Text(
+                  '$activeAlertsCount Alert${activeAlertsCount > 1 ? 's' : ''} Need Attention',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900)),
+            ]),
+          ),
+          const Icon(Icons.chevron_right_rounded,
+              color: Colors.white70, size: 22),
+        ]),
+      ),
+    );
+  }
+
+  // ── STATS GRID ────────────────────────────────────────────────
+  Widget _buildStatsGrid() {
+    return Column(children: [
+      Row(children: [
+        Expanded(
+            child: _statCard('TOURISTS', '$totalTourists',
+                Icons.people_alt_rounded, const Color(0xFF0E3A7E), 1)),
+        const SizedBox(width: 12),
+        Expanded(
+            child: _statCard('PENDING KYC', '$pendingKyc',
+                Icons.pending_actions_rounded, Colors.orange, 2)),
+      ]),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(
+            child: _statCard('SOS ACTIVE', '$activeAlertsCount',
+                Icons.emergency_rounded, Colors.red, 3)),
+        const SizedBox(width: 12),
+        Expanded(
+            child: _statCard(
+                'TRACKING', 'LIVE', Icons.radar_rounded, Colors.teal, 4,
+                isText: true)),
+      ]),
+    ]);
+  }
+
+  Widget _statCard(String label, String value, IconData icon, Color color,
+      int navIndex,
+      {bool isText = false}) {
+    return GestureDetector(
+      onTap: () => setState(() => _selectedIndex = navIndex),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFEDF1F5)),
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x05000000), blurRadius: 8, offset: Offset(0, 3))
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                  color: color.withValues(alpha:0.1),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, color: color, size: 17),
+            ),
+            Icon(Icons.arrow_outward_rounded,
+                color: Colors.grey.shade300, size: 14),
+          ]),
+          const SizedBox(height: 12),
+          Text(value,
+              style: TextStyle(
+                  fontSize: isText ? 18 : 24,
+                  fontWeight: FontWeight.w900,
+                  color: isText ? color : const Color(0xFF1E293B))),
+          const SizedBox(height: 2),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF94A3B8),
+                  letterSpacing: 0.8)),
+        ]),
+      ),
+    );
+  }
+
+  // ── QUICK ACTIONS ─────────────────────────────────────────────
+  Widget _buildQuickActions() {
+    final actions = [
+      ('Tourists', Icons.people_alt_rounded, const Color(0xFF0E3A7E), 1),
+      ('KYC', Icons.verified_user_rounded, Colors.orange, 2),
+      ('Live Map', Icons.map_rounded, Colors.teal, 4),
+      ('Settings', Icons.settings_rounded, Colors.blueGrey, 5),
+    ];
+    return Row(
+      children: actions.map((a) {
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() => _selectedIndex = a.$4),
+            child: Container(
+              margin: actions.indexOf(a) < actions.length - 1
+                  ? const EdgeInsets.only(right: 10)
+                  : EdgeInsets.zero,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFEDF1F5)),
+              ),
+              child: Column(children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 12, horizontal: 16),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.email_outlined,
-                          color: _primaryColor, size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Email',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontFamily: 'Outfit',
-                                )),
-                            Text(profileData?['email'] ?? 'N/A',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'Outfit',
-                                )),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                      color: a.$3.withValues(alpha:0.1), shape: BoxShape.circle),
+                  child: Icon(a.$2, color: a.$3, size: 20),
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  'Session',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: _primaryColor,
-                    letterSpacing: 0.5,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: _handleLogout,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withAlpha(20),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withAlpha(100)),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.logout,
-                            color: Colors.red, size: 20),
-                        SizedBox(width: 12),
-                        Text('Logout',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.red,
-                              fontFamily: 'Outfit',
-                            )),
-                        Spacer(),
-                        Icon(Icons.arrow_forward_ios_rounded,
-                            size: 14, color: Colors.red),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                const SizedBox(height: 7),
+                Text(a.$1,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF64748B))),
+              ]),
             ),
           ),
-        ],
-      ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ── SECTION TITLE ─────────────────────────────────────────────
+  Widget _sectionTitle(String t) => Row(children: [
+        Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+                color: const Color(0xFF0E3A7E),
+                borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 8),
+        Text(t,
+            style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF64748B),
+                letterSpacing: 1.1)),
+      ]);
+
+  // ── ALERT FEED ────────────────────────────────────────────────
+  Widget _buildAlertFeed() {
+    if (alertsList.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEDF1F5)),
+        ),
+        child: const Center(
+          child: Text('No incidents recorded',
+              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+        ),
+      );
+    }
+    return Column(
+      children: alertsList.take(5).map((a) {
+        final bool active = a['status'] == 'active';
+        return GestureDetector(
+          onTap: () => setState(() => _selectedIndex = 3),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: active
+                    ? Colors.red.withValues(alpha:0.22)
+                    : const Color(0xFFEDF1F5),
+              ),
+            ),
+            child: Row(children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: active
+                    ? Colors.red.withValues(alpha:0.1)
+                    : Colors.green.withValues(alpha:0.1),
+                child: Icon(
+                    active
+                        ? Icons.emergency_rounded
+                        : Icons.check_circle_rounded,
+                    color: active ? Colors.red : Colors.green,
+                    size: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(a['name'] ?? 'Unknown',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: Color(0xFF1E293B))),
+                    Text(a['phone'] ?? '',
+                        style: const TextStyle(
+                            fontSize: 11, color: Color(0xFF64748B))),
+                  ])),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: active
+                      ? Colors.red.withValues(alpha:0.08)
+                      : Colors.green.withValues(alpha:0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(active ? 'ACTIVE' : 'RESOLVED',
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: active ? Colors.red : Colors.green,
+                        letterSpacing: 0.5)),
+              ),
+            ]),
+          ),
+        );
+      }).toList(),
     );
   }
 }
 
+// ═══════════════════════════════════════════════════════
 class _NavItem {
   final IconData icon;
   final String label;
-
   const _NavItem(this.icon, this.label);
 }
