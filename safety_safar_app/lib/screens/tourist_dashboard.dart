@@ -11,6 +11,9 @@ import 'tourist_map_screen.dart';
 import 'my_firs_screen.dart';
 import 'weather_screen.dart';
 import '../services/llm_chatbot_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../login_role_selector_screen.dart';
+import 'edit_profile_screen.dart';
 
 class TouristDashboard extends StatefulWidget {
   final String authToken;
@@ -123,8 +126,17 @@ class _TouristDashboardState extends State<TouristDashboard>
     } catch (_) {}
   }
 
-  void _handleLogout() {
-    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+  Future<void> _handleLogout() async {
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.clear();
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginRoleSelectorScreen()),
+      (r) => false,
+    );
   }
 
   @override
@@ -344,7 +356,161 @@ class _TouristDashboardState extends State<TouristDashboard>
         userId: widget.userId,
       );
 
-  Widget _buildProfileTab() => SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(children: [const SizedBox(height: 40), const CircleAvatar(radius: 60, child: Icon(Icons.person, size: 60)), const SizedBox(height: 20), Text('${profileData?['first_name']} ${profileData?['last_name']}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), const SizedBox(height: 40), ElevatedButton(onPressed: _handleLogout, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 56)), child: const Text('Logout Session'))]));
+  Widget _buildProfileTab() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          const CircleAvatar(
+            radius: 50,
+            backgroundColor: Color(0xFF0E3A7E),
+            child: Icon(Icons.person, size: 50, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '${profileData?['first_name'] ?? 'Tourist'} ${profileData?['last_name'] ?? ''}',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            profileData?['email'] ?? 'No email',
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                if (profileData == null) return;
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditProfileScreen(
+                      currentData: profileData!,
+                      authToken: widget.authToken,
+                    ),
+                  ),
+                );
+                
+                // If it returns true, the profile was updated, so we refresh data
+                if (result == true) {
+                  _fetchProfile();
+                }
+              },
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              label: const Text('Edit Profile'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF0E3A7E),
+                elevation: 0,
+                side: const BorderSide(color: Color(0xFF0E3A7E)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          _buildProfileSection(
+            title: 'Personal Details',
+            icon: Icons.badge_rounded,
+            children: [
+              _buildProfileRow('Phone', profileData?['phone'] ?? 'N/A'),
+              _buildProfileRow('Nationality', profileData?['nationality'] ?? 'N/A'),
+              _buildProfileRow('Gender', profileData?['gender'] ?? 'N/A'),
+              _buildProfileRow('Date of Birth', profileData?['dob'] ?? 'N/A'),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildProfileSection(
+            title: 'Travel Information',
+            icon: Icons.flight_takeoff_rounded,
+            children: [
+              _buildProfileRow('Arrival', profileData?['arrival_date'] ?? 'N/A'),
+              _buildProfileRow('Departure', profileData?['departure_date'] ?? 'N/A'),
+              _buildProfileRow('Accommodation', profileData?['accommodation'] ?? 'N/A'),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildProfileSection(
+            title: 'Emergency Contact',
+            icon: Icons.contact_emergency_rounded,
+            children: [
+              _buildProfileRow('Name', profileData?['emergency_name'] ?? 'N/A'),
+              _buildProfileRow('Phone', profileData?['emergency_phone'] ?? 'N/A'),
+              _buildProfileRow('Relation', profileData?['emergency_relation'] ?? 'N/A'),
+            ],
+          ),
+          const SizedBox(height: 40),
+          ElevatedButton(
+            onPressed: _handleLogout,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade50,
+              foregroundColor: Colors.red,
+              elevation: 0,
+              minimumSize: const Size(double.infinity, 56),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text('Logout Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileSection({required String title, required IconData icon, required List<Widget> children}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: const Color(0xFF0E3A7E), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0E3A7E)),
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildAnomalyBanner(AnomalyEvent event) {
     final zoneName   = event.data['zone_name']    as String? ?? '';
