@@ -351,23 +351,14 @@ def authority_login(user: UserLogin, db: Session = Depends(get_db)):
 @router.post("/authority/register")
 async def authority_register(
     req: AuthorityRegisterRequest,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Register a new authority account.
-    This endpoint is admin-only. Only existing admins can register new authorities.
-    
-    Process:
-    1. Admin submits authority details
-    2. Authority account is created with is_approved=False
-    3. Admin must manually approve the account via /authority/approve endpoint
-    4. Only after approval can the authority login
+    Exposed publicly so users can sign up from the app.
+    Created with is_approved=False so admins must approve before they can login.
     """
     try:
-        # Check if current user is an admin
-        if current_user.role != "admin":
-            raise HTTPException(status_code=403, detail="Only admins can register new authorities")
         
         # Check if email already exists
         existing_user = db.query(User).filter(User.email == req.email).first()
