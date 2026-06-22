@@ -6,6 +6,8 @@ import 'kyc_pending_list_screen.dart';
 import 'live_alerts_map_screen.dart';
 import 'sos_alerts_screen.dart';
 import 'authority_settings_screen.dart';
+import 'efir_management_screen.dart';
+import 'admin_authority_management_screen.dart';
 import '../login_screen.dart';
 import '../utils/api_config.dart';
 
@@ -35,14 +37,19 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
   late AnimationController _fadeController;
 
   // ── nav items ──────────────────────────────────────────────────
-  static const _navItems = [
-    _NavItem(Icons.dashboard_rounded, 'Dashboard'),
-    _NavItem(Icons.people_alt_rounded, 'Tourists'),
-    _NavItem(Icons.verified_user_rounded, 'KYC'),
-    _NavItem(Icons.emergency_rounded, 'SOS'),
-    _NavItem(Icons.map_rounded, 'Tracking'),
-    _NavItem(Icons.settings_rounded, 'Settings'),
-  ];
+  List<_NavItem> get _getNavItems {
+    final isAdmin = profileData?['role'] == 'admin';
+    return [
+      const _NavItem(Icons.dashboard_rounded, 'Dashboard'),
+      const _NavItem(Icons.people_alt_rounded, 'Tourists'),
+      const _NavItem(Icons.verified_user_rounded, 'KYC'),
+      const _NavItem(Icons.emergency_rounded, 'SOS'),
+      const _NavItem(Icons.article_rounded, 'eFIR'),
+      const _NavItem(Icons.map_rounded, 'Tracking'),
+      if (isAdmin) const _NavItem(Icons.admin_panel_settings_outlined, 'Manage'),
+      const _NavItem(Icons.settings_rounded, 'Settings'),
+    ];
+  }
 
   @override
   void initState() {
@@ -152,12 +159,13 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
 
   // ── BOTTOM NAV — icon-pill style, NOT congested ───────────────
   Widget _buildBottomNav() {
+    final navItems = _getNavItems;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.07),
+              color: Colors.black.withValues(alpha:0.07),
               blurRadius: 16,
               offset: const Offset(0, -3))
         ],
@@ -167,9 +175,9 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
         child: SizedBox(
           height: 64,
           child: Row(
-            children: List.generate(_navItems.length, (i) {
+            children: List.generate(navItems.length, (i) {
               final bool selected = _selectedIndex == i;
-              final item = _navItems[i];
+              final item = navItems[i];
               final int badge = (i == 3) ? activeAlertsCount : 0;
 
               return Expanded(
@@ -248,6 +256,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
 
   // ── BODY SWITCHER ──────────────────────────────────────────────
   Widget _buildBody() {
+    final isAdmin = profileData?['role'] == 'admin';
+    
     switch (_selectedIndex) {
       case 0:
         return _buildDashboardTab();
@@ -260,9 +270,19 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
       case 3:
         return SOSAlertsScreen(authToken: widget.authToken);
       case 4:
+        return EFirManagementScreen(authToken: widget.authToken);
+      case 5:
         return LiveAlertsMapScreen(
             authToken: widget.authToken, alerts: alertsList);
-      case 5:
+      case 6:
+        return isAdmin
+            ? AdminAuthorityManagementScreen(authToken: widget.authToken)
+            : AuthoritySettingsScreen(
+              authToken: widget.authToken,
+              userId: widget.userId,
+              profileData: profileData,
+            );
+      case 7:
         return AuthoritySettingsScreen(
           authToken: widget.authToken,
           userId: widget.userId,
@@ -369,7 +389,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
                 children: [
                   CircleAvatar(
                     radius: 24,
-                    backgroundColor: Colors.white.withOpacity(0.2),
+                    backgroundColor: Colors.white.withValues(alpha:0.2),
                     child: Text(
                       (name.isNotEmpty) ? name[0].toUpperCase() : 'A',
                       style: const TextStyle(
@@ -415,13 +435,13 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
         decoration: BoxDecoration(
           color: const Color(0xFFECFDF5),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.green.withOpacity(0.3)),
+          border: Border.all(color: Colors.green.withValues(alpha:0.3)),
         ),
         child: Row(children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.12),
+                color: Colors.green.withValues(alpha:0.12),
                 shape: BoxShape.circle),
             child: const Icon(Icons.shield_rounded,
                 color: Colors.green, size: 20),
@@ -451,7 +471,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: Colors.red.withOpacity(0.3),
+                color: Colors.red.withValues(alpha:0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 6))
           ],
@@ -529,7 +549,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
             Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha:0.1),
                   borderRadius: BorderRadius.circular(10)),
               child: Icon(icon, color: color, size: 17),
             ),
@@ -581,7 +601,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                      color: a.$3.withOpacity(0.1), shape: BoxShape.circle),
+                      color: a.$3.withValues(alpha:0.1), shape: BoxShape.circle),
                   child: Icon(a.$2, color: a.$3, size: 20),
                 ),
                 const SizedBox(height: 7),
@@ -644,7 +664,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: active
-                    ? Colors.red.withOpacity(0.22)
+                    ? Colors.red.withValues(alpha:0.22)
                     : const Color(0xFFEDF1F5),
               ),
             ),
@@ -652,8 +672,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
               CircleAvatar(
                 radius: 18,
                 backgroundColor: active
-                    ? Colors.red.withOpacity(0.1)
-                    : Colors.green.withOpacity(0.1),
+                    ? Colors.red.withValues(alpha:0.1)
+                    : Colors.green.withValues(alpha:0.1),
                 child: Icon(
                     active
                         ? Icons.emergency_rounded
@@ -680,8 +700,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard>
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: active
-                      ? Colors.red.withOpacity(0.08)
-                      : Colors.green.withOpacity(0.08),
+                      ? Colors.red.withValues(alpha:0.08)
+                      : Colors.green.withValues(alpha:0.08),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(active ? 'ACTIVE' : 'RESOLVED',

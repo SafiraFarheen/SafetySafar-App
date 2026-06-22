@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/api_config.dart';
+import 'notification_service.dart';
 
 class AnomalyEvent {
   final String type;
@@ -45,11 +46,14 @@ class LocationTrackingService {
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
     ).listen((pos) {
-      onStatus('📍 ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}');
+      onStatus('${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}');
       _checkGeofenceThrottled(pos, onAnomalyDetected);
     }, onError: (e) => onError(e.toString()));
 
-    _periodicTimer = Timer.periodic(const Duration(seconds: 15), (_) => _sendLocation());
+    _periodicTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _sendLocation(onAnomalyDetected: onAnomalyDetected),
+    );
   }
 
   void stopTracking() {
@@ -75,10 +79,10 @@ class LocationTrackingService {
     }
   }
 
-  Future<void> _sendLocation() async {
+  Future<void> _sendLocation({Function(AnomalyEvent)? onAnomalyDetected}) async {
     try {
-      Position pos = await Geolocator.getCurrentPosition();
-      await http.post(
+      final pos = await Geolocator.getCurrentPosition();
+      final res = await http.post(
         Uri.parse(ApiConfig.trackLocation),
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_authToken'},
         body: jsonEncode({
@@ -88,6 +92,47 @@ class LocationTrackingService {
           'timestamp': DateTime.now().toUtc().toIso8601String(),
         }),
       ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final anomalies = (data['anomalies'] as List?) ?? [];
+        for (final anomaly in anomalies) {
+          final type = anomaly['type'] as String? ?? '';
+          final zoneName = anomaly['zone_name'] as String? ?? 'Unknown Zone';
+          final level = anomaly['danger_level'] as String? ?? 'medium';
+          final zoneType = anomaly['zone_type'] as String? ?? 'unsafe';
+
+          if (type == 'danger_zone_entry') {
+            // Push notification (works when app is backgrounded / screen off)
+            await NotificationService.showZoneEntryAlert(
+              zoneName: zoneName,
+              dangerLevel: level,
+              zoneType: zoneType,
+            );
+            // In-app callback for foreground popup
+            onAnomalyDetected?.call(AnomalyEvent(
+              type: type,
+              severity: level == 'critical' || level == 'high' ? 'critical' : 'warning',
+              message: 'You entered "$zoneName"',
+              data: {
+                'zone_name': zoneName,
+                'danger_level': level,
+                'zone_type': zoneType,
+                'threat_label': zoneType.replaceAll('_', ' ').toUpperCase(),
+              },
+            ));
+          } else if (type == 'danger_zone_exit') {
+            await NotificationService.showZoneExitAlert(zoneName: zoneName);
+          } else if (type == 'prolonged_inactivity') {
+            onAnomalyDetected?.call(AnomalyEvent(
+              type: type,
+              severity: 'critical',
+              message: 'Inactivity alert sent to authorities',
+              data: anomaly,
+            ));
+          }
+        }
+      }
     } catch (_) {}
   }
 

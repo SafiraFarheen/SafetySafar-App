@@ -1,9 +1,12 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
+import os
 
-DATABASE_URL = "postgresql://postgres:Safar%401604@localhost:5432/safety_safar"
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -30,7 +33,11 @@ def ensure_user_columns():
         "verified_at": "TIMESTAMP WITH TIME ZONE",
         "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT now()",
         "kyc_rejection_reason": "TEXT",
-        "kyc_rejected_at": "TIMESTAMP WITH TIME ZONE"
+        "kyc_rejected_at": "TIMESTAMP WITH TIME ZONE",
+        "is_approved": "BOOLEAN DEFAULT FALSE",
+        "department": "VARCHAR",
+        "approved_at": "TIMESTAMP WITH TIME ZONE",
+        "approved_by": "UUID"
     }
 
     with engine.begin() as conn:

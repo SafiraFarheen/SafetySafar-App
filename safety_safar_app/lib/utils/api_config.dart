@@ -11,6 +11,12 @@ class ApiConfig {
   static const String forgotPassword = '$baseUrl/forgot-password';
   static const String resetPassword  = '$baseUrl/reset-password';
 
+  // ── Authority/Admin Auth ──────────────────────────────────────
+  static const String authorityLogin  = '$baseUrl/authority/login';
+  static const String authorityRegister = '$baseUrl/authority/register';
+  static String authorityApprove(String userId) => '$baseUrl/authority/approve/$userId';
+  static const String pendingAuthorities = '$baseUrl/authority/pending';
+
   // ── Dashboard & Alerts ───────────────────────────────────────
   static const String dashboardStats = '$baseUrl/dashboard/stats';
   static const String alerts         = '$baseUrl/alerts';
@@ -33,8 +39,25 @@ class ApiConfig {
   static String resolveAnomalyAlert(String id) =>
       '$baseUrl/anomaly/alerts/resolve/$id';
 
-  // Danger zones
-  static const String dangerZones = '$baseUrl/anomaly/danger-zones';
-  static String dangerZonesNear(double lat, double lng, {double radiusKm = 5}) =>
+  // Live tourist locations for authority map
+  static String get touristLocations => '$baseUrl/anomaly/tourist-locations';
+
+  // ── eFIR ─────────────────────────────────────────────────────
+  static String get fileFir        => '$baseUrl/fir/file';
+  static String get myFirs         => '$baseUrl/fir/my';
+  static String get allFirs        => '$baseUrl/fir/all';
+  static String firDetail(String id)  => '$baseUrl/fir/$id';
+  static String resolveFir(String id) => '$baseUrl/fir/$id/resolve';
+  static String firImage(String firId, String filename) => '$baseUrl/fir/$firId/image/$filename';
+
+  // Danger zones & AI assessment
+  static String get dangerZones => '$baseUrl/anomaly/danger-zones';
+  static String dangerZonesNear(
+    double lat,
+    double lng, {
+    double radiusKm = 5,
+  }) =>
       '$baseUrl/anomaly/danger-zones?latitude=$lat&longitude=$lng&radius_km=$radiusKm';
+  static String get assessZone => '$baseUrl/anomaly/assess-zone';
 }
+
